@@ -5,7 +5,7 @@
 ## フォルダ構成
 
 - `backend/` - Pythonバックエンド処理
-- `frontend/` - Flutterフロントエンドアプリ
+- `kinten/` - Flutterアプリ
 - `templates/` - 勤怠表テンプレート
 - `input/` - 入力ファイル（個人情報を含むファイルは除外）
 - `output/` - 出力ファイル

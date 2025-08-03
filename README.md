@@ -83,7 +83,7 @@ brew install flutter
 
 3. **Flutter依存関係のインストール**
    ```bash
-   cd frontend
+   cd kinten
    flutter pub get
    ```
 
@@ -98,7 +98,7 @@ flutter --version
 
 #### 開発モード
 ```bash
-cd frontend
+cd kinten
 flutter run -d windows  # Windows
 flutter run -d macos    # macOS
 ```
@@ -106,10 +106,10 @@ flutter run -d macos    # macOS
 #### ビルド済みアプリの実行
 ```bash
 # Windows
-.\frontend\build\windows\x64\runner\Release\frontend.exe
+.\kinten\build\windows\x64\runner\Release\kinten.exe
 
 # または、エクスプローラーで以下をダブルクリック
-# frontend\build\windows\x64\runner\Release\frontend.exe
+# kinten\build\windows\x64\runner\Release\kinten.exe
 ```
 
 ### 3. ファイル選択
@@ -153,7 +153,7 @@ kinten/
 │   └── create_sample_template.py
 ├── docs/                    # ドキュメント
 │   └── README.md           # プロジェクトドキュメント
-├── frontend/                # Flutterフロントエンド
+├── kinten/                  # Flutterアプリ
 │   ├── lib/
 │   │   ├── main.dart
 │   │   ├── providers/
@@ -195,7 +195,7 @@ python -m pytest tests/
 
 ### Flutterテスト
 ```bash
-cd frontend
+cd kinten
 flutter test
 ```
 
