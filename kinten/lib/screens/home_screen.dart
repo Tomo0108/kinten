@@ -112,9 +112,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   
   Widget _buildHeader(bool isSmallScreen) {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 6 : 8),
+      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 4 : 6),
       child: Container(
-        padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+        padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
@@ -124,27 +124,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               Color(0xFF2980B9),
             ],
           ),
-          borderRadius: BorderRadius.circular(isSmallScreen ? 20 : 24),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF3498DB).withOpacity(0.4),
-              blurRadius: isSmallScreen ? 20 : 25,
-              offset: Offset(0, isSmallScreen ? 8 : 12),
-            ),
-            BoxShadow(
-              color: Colors.white.withOpacity(0.9),
-              blurRadius: isSmallScreen ? 20 : 25,
-              offset: Offset(isSmallScreen ? -6 : -8, isSmallScreen ? -6 : -8),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
         ),
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+              padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
+                borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.3),
                   width: 1,
@@ -153,10 +141,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: Icon(
                 Icons.schedule,
                 color: Colors.white,
-                size: isSmallScreen ? 24 : 28,
+                size: isSmallScreen ? 20 : 24,
               ),
             ),
-            SizedBox(width: isSmallScreen ? 16 : 24),
+            SizedBox(width: isSmallScreen ? 12 : 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +152,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   Text(
                     'Kinten',
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 24 : 28,
+                      fontSize: isSmallScreen ? 20 : 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                       letterSpacing: 1.2,
@@ -173,7 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   Text(
                     '勤怠管理アプリ',
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 12 : 14,
+                      fontSize: isSmallScreen ? 10 : 12,
                       color: Colors.white,
                       fontWeight: FontWeight.w400,
                       letterSpacing: 0.6,
@@ -190,53 +178,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Widget _buildTabBar(bool isSmallScreen) {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 6 : 8),
-      child: NeumorphicContainer(
-        padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8F9FA),
-            borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: isSmallScreen ? 6 : 8,
-                offset: Offset(0, isSmallScreen ? 1 : 2),
-              ),
-            ],
+      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 4 : 6),
+      child: Container(
+        padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
+        ),
+        child: TabBar(
+          controller: _tabController,
+          indicator: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
+            ),
+            borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
           ),
-          child: TabBar(
-            controller: _tabController,
-            indicator: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
-              ),
-              borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF3498DB).withOpacity(0.3),
-                  blurRadius: isSmallScreen ? 6 : 8,
-                  offset: Offset(0, isSmallScreen ? 2 : 4),
-                ),
-              ],
-            ),
-            labelColor: Colors.white,
-            unselectedLabelColor: const Color(0xFF7F8C8D),
-            labelStyle: TextStyle(
-              fontSize: isSmallScreen ? 12 : 14,
-              fontWeight: FontWeight.w600,
-            ),
-            unselectedLabelStyle: TextStyle(
-              fontSize: isSmallScreen ? 12 : 14,
-              fontWeight: FontWeight.w500,
-            ),
-            dividerColor: Colors.transparent,
-            indicatorSize: TabBarIndicatorSize.tab,
-            tabs: const [
-              Tab(text: '自動転記'),
-              Tab(text: 'PDF変換'),
-            ],
+          labelColor: Colors.white,
+          unselectedLabelColor: const Color(0xFF7F8C8D),
+          labelStyle: TextStyle(
+            fontSize: isSmallScreen ? 11 : 13,
+            fontWeight: FontWeight.w600,
           ),
+          unselectedLabelStyle: TextStyle(
+            fontSize: isSmallScreen ? 11 : 13,
+            fontWeight: FontWeight.w500,
+          ),
+          dividerColor: Colors.transparent,
+          indicatorSize: TabBarIndicatorSize.tab,
+          tabs: const [
+            Tab(text: '自動転記'),
+            Tab(text: 'PDF変換'),
+          ],
         ),
       ),
     );
@@ -244,37 +216,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   
   Widget _buildAutoTransferTab(BuildContext context, WidgetRef ref, bool isSmallScreen) {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
+      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 8 : 12),
       child: NeumorphicContainer(
-        padding: EdgeInsets.all(isSmallScreen ? 24 : 40),
+        padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // セクションヘッダー
               Container(
-                margin: EdgeInsets.only(bottom: isSmallScreen ? 24 : 32),
+                margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
                 child: Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+                      padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
                         ),
-                        borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF3498DB).withOpacity(0.3),
-                            blurRadius: isSmallScreen ? 6 : 8,
-                            offset: Offset(0, isSmallScreen ? 2 : 4),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
                       ),
                       child: Icon(
                         Icons.person,
                         color: Colors.white,
-                        size: isSmallScreen ? 20 : 24,
+                        size: isSmallScreen ? 18 : 22,
                       ),
                     ),
                     SizedBox(width: isSmallScreen ? 12 : 16),
@@ -285,15 +250,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           Text(
                             '基本情報',
                             style: TextStyle(
-                              fontSize: isSmallScreen ? 20 : 24,
+                              fontSize: isSmallScreen ? 18 : 22,
                               fontWeight: FontWeight.bold,
                               color: const Color(0xFF2C3E50),
                             ),
                           ),
                           Text(
-                            '従業員情報とファイルを設定してください',
+                            '従業員情報を設定してください',
                             style: TextStyle(
-                              fontSize: isSmallScreen ? 12 : 14,
+                              fontSize: isSmallScreen ? 10 : 12,
                               color: const Color(0xFF7F8C8D),
                               fontWeight: FontWeight.w500,
                             ),
@@ -315,32 +280,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 },
               ),
               
-              SizedBox(height: isSmallScreen ? 24 : 32),
+              SizedBox(height: isSmallScreen ? 16 : 20),
               
               // ファイル選択セクション
               Container(
-                margin: EdgeInsets.only(bottom: isSmallScreen ? 24 : 32),
+                margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
                 child: Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+                      padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF27AE60), Color(0xFF229954)],
                         ),
-                        borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF27AE60).withOpacity(0.3),
-                            blurRadius: isSmallScreen ? 6 : 8,
-                            offset: Offset(0, isSmallScreen ? 2 : 4),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
                       ),
                       child: Icon(
                         Icons.folder_open,
                         color: Colors.white,
-                        size: isSmallScreen ? 20 : 24,
+                        size: isSmallScreen ? 18 : 22,
                       ),
                     ),
                     SizedBox(width: isSmallScreen ? 12 : 16),
@@ -351,7 +309,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           Text(
                             'ファイル設定',
                             style: TextStyle(
-                              fontSize: isSmallScreen ? 20 : 24,
+                              fontSize: isSmallScreen ? 18 : 22,
                               fontWeight: FontWeight.bold,
                               color: const Color(0xFF2C3E50),
                             ),
@@ -359,7 +317,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           Text(
                             'CSVファイルとテンプレートを選択してください',
                             style: TextStyle(
-                              fontSize: isSmallScreen ? 12 : 14,
+                              fontSize: isSmallScreen ? 10 : 12,
                               color: const Color(0xFF7F8C8D),
                               fontWeight: FontWeight.w500,
                             ),
@@ -382,7 +340,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 selectedPath: ref.watch(appStateProvider).csvPath,
               ),
               
-              const SizedBox(height: 24),
+              SizedBox(height: isSmallScreen ? 16 : 20),
               
               // Excelテンプレート選択
               FileSelector(
@@ -395,7 +353,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 selectedPath: ref.watch(appStateProvider).templatePath,
               ),
              
-              const SizedBox(height: 40),
+              SizedBox(height: isSmallScreen ? 24 : 32),
               
               // ステータス表示（エラー時のみ表示）
               if (ref.watch(appStateProvider).status == AppStatus.error)
@@ -526,7 +484,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     print('Is ready: $isReady');
     
     return Container(
-      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 16 : 24),
+      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
       child: Center(
         child: Container(
           decoration: BoxDecoration(
