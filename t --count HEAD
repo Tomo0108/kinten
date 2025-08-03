@@ -1,0 +1,5 @@
+[33mc71313d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m 大きなファイルを除外
+[33m983107f[m フォルダ自動開き機能とシート名改善
+[33mbb6e628[m インポートエラー修正とPylance設定追加
+[33mded5b9f[m[33m ([m[1;31morigin/master[m[33m)[m Fix import errors and improve path resolution
+[33m8b75275[m Initial commit: Kinten勤怠管理アプリ

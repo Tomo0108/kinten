@@ -1,0 +1,25 @@
+{
+  "include": [
+    ".",
+    "backend"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "venv",
+    "frontend",
+    "output",
+    "input",
+    "templates",
+    "assets"
+  ],
+  "pythonPath": "./venv/Scripts/python.exe",
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": false,
+  "extraPaths": [
+    "./backend"
+  ]
+} 

@@ -1,0 +1,152 @@
+"""
+メイン処理ロジック
+CSVとExcel処理を統合する
+"""
+
+import os
+from typing import Dict, Any
+from csv_processor import CSVProcessor
+from excel_processor import ExcelProcessor
+
+
+class KintenProcessor:
+    """Kintenメイン処理クラス"""
+    
+    def __init__(self):
+        self.csv_processor = CSVProcessor()
+        self.excel_processor = ExcelProcessor()
+    
+    def process_files(self, csv_path: str, template_path: str, base_output_dir: str, employee_name: str) -> Dict[str, Any]:
+        """
+        メイン処理：CSV読み込み → Excel転記 → 保存
+        
+        Args:
+            csv_path: CSVファイルパス
+            template_path: テンプレートExcelパス
+            base_output_dir: 基本出力ディレクトリパス
+            employee_name: 従業員名（GUIから取得）
+            
+        Returns:
+            処理結果辞書
+        """
+        try:
+            # 1. CSVファイル読み込み
+            # 従業員名を設定
+            self.csv_processor.set_employee_name(employee_name)
+            
+            csv_result = self.csv_processor.load_csv(csv_path)
+            if not csv_result['success']:
+                return {
+                    'success': False,
+                    'error': f"CSV読み込みエラー: {csv_result['error']}"
+                }
+            
+            # 2. 出力先フォルダとファイル名を生成
+            year_month = csv_result['year_month']
+            
+            # 出力先フォルダを作成（例：2025_07）
+            output_folder = os.path.join(base_output_dir, f"{year_month[:4]}_{year_month[4:]}")
+            output_folder = os.path.abspath(output_folder)  # 絶対パスに変換
+            print(f"Generated output folder: {output_folder}")
+            os.makedirs(output_folder, exist_ok=True)
+            
+            # 出力ファイル名を生成（例：勤怠表_202501_サンプル.xlsx）
+            output_filename = f"勤怠表_{year_month}_{employee_name}.xlsx"
+            output_path = os.path.join(output_folder, output_filename)
+            
+            # 3. テンプレートExcel読み込み
+            excel_result = self.excel_processor.load_template(template_path)
+            if not excel_result['success']:
+                return {
+                    'success': False,
+                    'error': f"Excel読み込みエラー: {excel_result['error']}"
+                }
+            
+            # 4. シート名変更（氏名を含む）
+            if not self.excel_processor.update_sheet_name(year_month, employee_name):
+                return {
+                    'success': False,
+                    'error': "シート名変更エラー"
+                }
+            
+            # 5. 従業員情報書き込み
+            year = year_month[:4]
+            month = year_month[4:]
+            
+            if not self.excel_processor.write_employee_info(employee_name, year, month):
+                return {
+                    'success': False,
+                    'error': "従業員情報書き込みエラー"
+                }
+            
+            # 6. 勤怠データ転記
+            df = self.csv_processor.get_processed_data()
+            if not self.excel_processor.write_attendance_data(df, employee_name):
+                return {
+                    'success': False,
+                    'error': "勤怠データ転記エラー"
+                }
+            
+            # 7. ファイル保存
+            save_result = self.excel_processor.save_workbook(output_path)
+            if not save_result['success']:
+                return {
+                    'success': False,
+                    'error': f"ファイル保存エラー: {save_result['error']}"
+                }
+            
+            return {
+                'success': True,
+                'employee_name': employee_name,
+                'year_month': year_month,
+                'output_path': output_path,
+                'output_folder': output_folder,
+                'row_count': csv_result['row_count']
+            }
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Detailed error: {error_details}")
+            return {
+                'success': False,
+                'error': f"処理エラー: {str(e)}",
+                'details': error_details
+            }
+    
+    def validate_inputs(self, csv_path: str, template_path: str, output_dir: str) -> Dict[str, Any]:
+        """
+        入力ファイルの検証
+        
+        Args:
+            csv_path: CSVファイルパス
+            template_path: テンプレートExcelパス
+            output_dir: 出力ディレクトリパス
+            
+        Returns:
+            検証結果辞書
+        """
+        errors = []
+        
+        # CSVファイル存在チェック
+        if not os.path.exists(csv_path):
+            errors.append("CSVファイルが見つかりません")
+        elif not csv_path.lower().endswith('.csv'):
+            errors.append("CSVファイルの拡張子が正しくありません")
+        
+        # テンプレートファイル存在チェック
+        if not os.path.exists(template_path):
+            errors.append("テンプレートExcelファイルが見つかりません")
+        elif not template_path.lower().endswith(('.xlsx', '.xls')):
+            errors.append("テンプレートファイルの拡張子が正しくありません")
+        
+        # 出力ディレクトリ存在チェック
+        if not os.path.exists(output_dir):
+            errors.append("出力ディレクトリが見つかりません")
+        elif not os.path.isdir(output_dir):
+            errors.append("出力パスがディレクトリではありません")
+        
+        return {
+            'valid': len(errors) == 0,
+            'errors': errors
+        } 

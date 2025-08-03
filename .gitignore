@@ -1,0 +1,105 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Python lib directory (but not Flutter lib)
+backend/lib/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# History files
+.history/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Large files
+*.zip
+flutter.zip
+
+# Output files (keep the structure but ignore generated files)
+output/*/
+!output/.gitkeep
+
+# Test files
+test_output.xlsx
+test_integration.xlsx
+test_flutter_*.py
+test_explorer_*.py
+test_*.py
+debug_*.py
+test_flutter_integration.xlsx
+
+# Personal information files - 個人情報を含むファイル
+input/勤怠詳細_小島　知将_*.csv
+input/勤怠詳細_*_*.csv
+assets/勤怠表_山田太郎_*.xlsx
+assets/勤怠表_*_*.xlsx
+assets/勤怠詳細_*_*.csv
+
+# Large Excel files - 容量の多いExcelファイル
+*.xlsx
+*.xls
+
+# CSV files with personal data - 個人データを含むCSVファイル
+*.csv
+
+# Sample and template files - サンプルとテンプレートファイル
+assets/勤怠表_サンプル_*.xlsx
+assets/勤怠詳細_サンプル_*.csv
+assets/勤怠表雛形_*.xlsx
+templates/勤怠表雛形_*.xlsx
+
+# Test files
+test_path_resolution.py 
