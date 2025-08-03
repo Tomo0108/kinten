@@ -13,6 +13,7 @@ Kinten（勤転）は、freee等の勤怠管理システムからエクスポー
 - 📊 **freee対応** - freeeの勤怠CSV形式に対応
 - 🖥️ **クロスプラットフォーム** - Windows/macOS対応
 - 🚀 **高速処理** - Pythonバックエンドによる効率的な処理
+- 🔒 **プライバシー重視** - ローカル処理で個人情報を保護
 
 ## 🛠️ 技術スタック
 
@@ -111,12 +112,12 @@ flutter run -d macos    # macOS
 # frontend\build\windows\x64\runner\Release\frontend.exe
 ```
 
-### 2. ファイル選択
+### 3. ファイル選択
 1. **勤怠CSVファイル** - freeeからエクスポートしたCSVファイルを選択
 2. **Excelテンプレート** - 勤怠表テンプレートを選択
 3. **出力先フォルダ** - 変換後のExcelファイルの保存先を選択
 
-### 3. 変換実行
+### 4. 変換実行
 「変換して保存」ボタンをクリックして処理を開始
 
 ## 📁 ファイル形式
@@ -137,6 +138,53 @@ flutter run -d macos    # macOS
 - **ファイル名**: `勤怠表_従業員名_YYYYMM.xlsx`
 - **シート名**: `勤怠表_YYYYMM`
 
+## 📂 プロジェクト構造
+
+```
+kinten/
+├── .git/                    # Gitリポジトリ
+├── .history/                # エディタ履歴
+├── assets/                  # アセットファイル（.gitkeep）
+├── backend/                 # Pythonバックエンド
+│   ├── __init__.py
+│   ├── csv_processor.py     # CSV処理
+│   ├── excel_processor.py   # Excel処理
+│   ├── main_processor.py    # メイン処理
+│   └── create_sample_template.py
+├── docs/                    # ドキュメント
+│   └── README.md           # プロジェクトドキュメント
+├── frontend/                # Flutterフロントエンド
+│   ├── lib/
+│   │   ├── main.dart
+│   │   ├── providers/
+│   │   ├── screens/
+│   │   ├── services/
+│   │   └── widgets/
+│   ├── pubspec.yaml
+│   └── README.md
+├── input/                   # 入力ファイル（.gitkeep）
+├── output/                  # 出力ファイル
+│   ├── .gitkeep
+│   └── 2025_06/            # 月別出力フォルダ
+├── templates/               # テンプレートファイル
+│   └── 勤怠表雛形_2025年版.xlsx
+├── venv/                    # Python仮想環境
+├── .gitignore              # Git除外設定
+├── check_environment.ps1   # 環境チェックスクリプト
+├── kinten_要件.md          # 要件定義
+├── pyrightconfig.json      # Python設定
+├── README.md               # このファイル
+├── requirements.txt        # Python依存関係
+├── タスクリスト.md         # 開発タスク
+└── デザイン要件.md         # デザイン要件
+```
+
+## 🔒 プライバシーとセキュリティ
+
+- **ローカル処理**: すべてのデータ処理はローカルで実行
+- **個人情報保護**: 個人情報を含むファイルは`.gitignore`で除外
+- **データ保持**: 処理後のデータは指定された出力フォルダにのみ保存
+
 ## 🧪 テスト
 
 ### Pythonバックエンドテスト
@@ -153,29 +201,17 @@ flutter test
 
 ## 📝 開発
 
-### プロジェクト構造
-```
-kinten/
-├── backend/           # Pythonバックエンド
-│   ├── csv_processor.py
-│   ├── excel_processor.py
-│   └── main_processor.py
-├── frontend/          # Flutterフロントエンド
-│   ├── lib/
-│   │   ├── screens/
-│   │   ├── widgets/
-│   │   └── providers/
-│   └── pubspec.yaml
-├── assets/            # サンプルファイル
-├── docs/              # ドキュメント
-└── requirements.txt   # Python依存関係
-```
-
 ### 開発環境のセットアップ
 1. Flutter SDKのインストール
 2. Python仮想環境の作成
 3. 依存関係のインストール
 4. IDE設定（VS Code推奨）
+
+### 環境チェック
+```bash
+# 環境チェックスクリプトの実行
+.\check_environment.ps1
+```
 
 ## 🤝 貢献
 
@@ -200,6 +236,13 @@ kinten/
 - [ ] データ検証機能強化
 - [ ] プラグイン機能
 - [ ] クラウド同期機能
+
+## 📋 関連ドキュメント
+
+- [要件定義](kinten_要件.md) - プロジェクトの要件
+- [デザイン要件](デザイン要件.md) - UI/UXデザイン仕様
+- [タスクリスト](タスクリスト.md) - 開発タスク一覧
+- [プロジェクトドキュメント](docs/README.md) - 詳細ドキュメント
 
 ---
 
