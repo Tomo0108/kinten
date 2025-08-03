@@ -24,6 +24,18 @@ class KintenApp extends StatelessWidget {
         ),
         useMaterial3: true,
         fontFamily: 'Noto Sans JP',
+        // レスポンシブデザインのためのテキストスケール設定
+        textTheme: const TextTheme(
+          headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          headlineSmall: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+          titleMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          titleSmall: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+          bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+          bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+        ),
       ),
       home: const HomeScreen(),
     );

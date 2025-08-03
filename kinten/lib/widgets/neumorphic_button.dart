@@ -27,6 +27,7 @@ class _NeumorphicButtonState extends State<NeumorphicButton>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   bool _isPressed = false;
+  bool _isHovered = false;
 
   @override
   void initState() {
@@ -76,54 +77,73 @@ class _NeumorphicButtonState extends State<NeumorphicButton>
     final isEnabled = widget.onPressed != null;
     final buttonColor = widget.color ?? const Color(0xFF5A6B8C);
 
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      onTap: widget.onPressed,
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _scaleAnimation.value,
-            child: Container(
-              width: widget.width,
-              height: widget.height,
-              decoration: BoxDecoration(
-                color: buttonColor,
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-                boxShadow: _isPressed
-                    ? [
-                        // 押された時の影（内側風の効果）
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 2,
-                          offset: const Offset(1, 1),
-                        ),
-                      ]
-                    : [
-                        // 通常時の影（外側）
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                        BoxShadow(
-                          color: Colors.white.withOpacity(0.8),
-                          blurRadius: 8,
-                          offset: const Offset(-2, -2),
-                        ),
-                      ],
-              ),
-              child: Center(
-                child: Opacity(
-                  opacity: isEnabled ? 1.0 : 0.5,
-                  child: widget.child,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTapDown: _onTapDown,
+        onTapUp: _onTapUp,
+        onTapCancel: _onTapCancel,
+        onTap: widget.onPressed,
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _scaleAnimation.value,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: widget.width,
+                height: widget.height,
+                decoration: BoxDecoration(
+                  color: buttonColor,
+                  borderRadius: BorderRadius.circular(widget.borderRadius),
+                  boxShadow: _isPressed
+                      ? [
+                          // 押された時の影（内側風の効果）
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 2,
+                            offset: const Offset(1, 1),
+                          ),
+                        ]
+                      : _isHovered
+                          ? [
+                              // ホバー時の影（より強調）
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.9),
+                                blurRadius: 12,
+                                offset: const Offset(-3, -3),
+                              ),
+                            ]
+                          : [
+                              // 通常時の影
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.8),
+                                blurRadius: 8,
+                                offset: const Offset(-2, -2),
+                              ),
+                            ],
+                ),
+                child: Center(
+                  child: Opacity(
+                    opacity: isEnabled ? 1.0 : 0.5,
+                    child: widget.child,
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
