@@ -6,6 +6,7 @@ class SettingsService {
   static const String _templatePathKey = 'template_path';
   static const String _outputPathKey = 'output_path';
   static const String _employeeNameKey = 'employee_name';
+  static const String _pdfOutputFolderKey = 'pdf_output_folder';
   static const String _defaultTemplatePath = 'templates/勤怠表雛形_2025年版.xlsx';
 
   // テンプレートパスを取得（デフォルト値または保存された値）
@@ -108,11 +109,32 @@ class SettingsService {
     await prefs.setString(_employeeNameKey, name);
   }
 
+  // PDF出力フォルダを取得
+  static Future<String> getPdfOutputFolder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedPath = prefs.getString(_pdfOutputFolderKey);
+    
+    if (savedPath != null && savedPath.isNotEmpty) {
+      return savedPath;
+    }
+    
+    // デフォルトの出力先を使用
+    final projectRoot = await getProjectRoot();
+    return '$projectRoot/output';
+  }
+
+  // PDF出力フォルダを保存
+  static Future<void> setPdfOutputFolder(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pdfOutputFolderKey, path);
+  }
+
   // 設定をリセット
   static Future<void> resetSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_templatePathKey);
     await prefs.remove(_outputPathKey);
     await prefs.remove(_employeeNameKey);
+    await prefs.remove(_pdfOutputFolderKey);
   }
 } 

@@ -7,6 +7,7 @@ import os
 from typing import Dict, Any
 from csv_processor import CSVProcessor
 from excel_processor import ExcelProcessor
+from pdf_converter import PDFConverter
 
 
 class KintenProcessor:
@@ -15,6 +16,7 @@ class KintenProcessor:
     def __init__(self):
         self.csv_processor = CSVProcessor()
         self.excel_processor = ExcelProcessor()
+        self.pdf_converter = PDFConverter()
     
     def process_files(self, csv_path: str, template_path: str, base_output_dir: str, employee_name: str) -> Dict[str, Any]:
         """
@@ -149,4 +151,53 @@ class KintenProcessor:
         return {
             'valid': len(errors) == 0,
             'errors': errors
-        } 
+        }
+    
+    def get_excel_files(self, folder_path: str) -> Dict[str, Any]:
+        """
+        指定フォルダ内のExcelファイルを取得
+        
+        Args:
+            folder_path: フォルダパス
+            
+        Returns:
+            結果辞書
+        """
+        return self.pdf_converter.get_excel_files(folder_path)
+    
+    def create_pdf_output_folder(self, base_output_dir: str) -> Dict[str, Any]:
+        """
+        PDF出力フォルダを作成（日付フォルダ）
+        
+        Args:
+            base_output_dir: 基本出力ディレクトリ
+            
+        Returns:
+            結果辞書
+        """
+        return self.pdf_converter.create_output_folder(base_output_dir)
+    
+    def convert_excel_to_pdf(self, excel_files: list, output_folder: str) -> Dict[str, Any]:
+        """
+        ExcelファイルをPDFに変換
+        
+        Args:
+            excel_files: 変換するExcelファイルのパスリスト
+            output_folder: 出力フォルダパス
+            
+        Returns:
+            結果辞書
+        """
+        return self.pdf_converter.convert_to_pdf(excel_files, output_folder)
+    
+    def open_folder(self, folder_path: str) -> Dict[str, Any]:
+        """
+        フォルダを開く
+        
+        Args:
+            folder_path: 開くフォルダのパス
+            
+        Returns:
+            結果辞書
+        """
+        return self.pdf_converter.open_folder(folder_path) 

@@ -83,7 +83,18 @@ class CSVProcessor:
                 for date_str in self.df['日付']:
                     if pd.notna(date_str) and str(date_str).strip() != '':
                         date_str = str(date_str).strip()
-                        if '/' in date_str:
+                        
+                        # YYYY-MM-DD形式の処理
+                        if '-' in date_str:
+                            parts = date_str.split('-')
+                            if len(parts) >= 2:
+                                year = parts[0]
+                                month = parts[1].zfill(2)  # 1桁の月を2桁に
+                                self.year_month = f"{year}{month}"
+                                return
+                        
+                        # YYYY/MM/DD形式の処理
+                        elif '/' in date_str:
                             parts = date_str.split('/')
                             if len(parts) >= 2:
                                 year = parts[0]
@@ -104,11 +115,19 @@ class CSVProcessor:
         if self.df is None:
             raise ValueError("CSVデータが読み込まれていません")
             
-        required_columns = ['日付', '始業時刻1', '終業時刻1', '勤怠種別', '総勤務時間']
+        # 基本的な列の存在チェック
+        basic_required_columns = ['日付']
         
-        for col in required_columns:
+        for col in basic_required_columns:
             if col not in self.df.columns:
                 raise ValueError(f"必要な列 '{col}' が見つかりません")
+        
+        # 時刻関連の列を柔軟にチェック
+        time_columns = ['出勤時刻', '退勤時刻', '始業時刻1', '終業時刻1']
+        found_time_columns = [col for col in time_columns if col in self.df.columns]
+        
+        if not found_time_columns:
+            raise ValueError("時刻関連の列（出勤時刻/退勤時刻 または 始業時刻1/終業時刻1）が見つかりません")
         
         return True
     
@@ -121,9 +140,24 @@ class CSVProcessor:
         processed_df = self.df.copy()
         processed_df['氏名'] = self.employee_name
         
-        # 勤怠メモ列が存在しない場合は空の列を追加
-        if '勤怠メモ' not in processed_df.columns:
-            processed_df['勤怠メモ'] = ''
+        # 列名の統一化
+        column_mapping = {
+            '出勤時刻': '始業時刻1',
+            '退勤時刻': '終業時刻1',
+            '勤務時間': '総勤務時間',
+            '備考': '勤怠メモ'
+        }
+        
+        # 列名を統一
+        for old_col, new_col in column_mapping.items():
+            if old_col in processed_df.columns and new_col not in processed_df.columns:
+                processed_df[new_col] = processed_df[old_col]
+        
+        # 必要な列が存在しない場合は空の列を追加
+        required_columns = ['勤怠種別', '勤怠メモ']
+        for col in required_columns:
+            if col not in processed_df.columns:
+                processed_df[col] = ''
         
         return processed_df
     

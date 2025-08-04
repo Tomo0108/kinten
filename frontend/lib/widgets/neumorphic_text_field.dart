@@ -6,6 +6,7 @@ class NeumorphicTextField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final TextEditingController? controller;
   final bool enabled;
+  final bool readOnly;
 
   const NeumorphicTextField({
     super.key,
@@ -14,6 +15,7 @@ class NeumorphicTextField extends StatefulWidget {
     this.onChanged,
     this.controller,
     this.enabled = true,
+    this.readOnly = false,
   });
 
   @override
@@ -125,7 +127,8 @@ class _NeumorphicTextFieldState extends State<NeumorphicTextField> {
                     Expanded(
                       child: TextField(
                         controller: widget.controller,
-                        enabled: widget.enabled,
+                        enabled: widget.enabled && !widget.readOnly,
+                        readOnly: widget.readOnly,
                         decoration: InputDecoration(
                           hintText: widget.hint,
                           hintStyle: TextStyle(
@@ -147,25 +150,21 @@ class _NeumorphicTextFieldState extends State<NeumorphicTextField> {
                     if (widget.controller?.text.isNotEmpty == true)
                       Container(
                         margin: const EdgeInsets.only(left: 12),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              widget.controller?.clear();
-                              widget.onChanged?.call('');
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE74C3C).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Icon(
-                                Icons.clear,
-                                color: Color(0xFFE74C3C),
-                                size: 18,
-                              ),
+                        child: GestureDetector(
+                          onTap: () {
+                            widget.controller?.clear();
+                            widget.onChanged?.call('');
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE74C3C).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(
+                              Icons.clear,
+                              color: Color(0xFFE74C3C),
+                              size: 18,
                             ),
                           ),
                         ),

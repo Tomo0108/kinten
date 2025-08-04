@@ -17,6 +17,7 @@ class KintenApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Kinten（勤転）',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF5A6B8C),
@@ -35,6 +36,13 @@ class KintenApp extends StatelessWidget {
           bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
           bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
           bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+        ),
+        // アプリバーのテーマ設定
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.transparent),
+          titleTextStyle: TextStyle(color: Colors.transparent),
         ),
       ),
       home: const HomeScreen(),

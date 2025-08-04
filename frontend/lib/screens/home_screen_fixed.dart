@@ -435,41 +435,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                   ],
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: isReady && appState.status != AppStatus.processing
-                  ? () => ref.read(appStateProvider.notifier).processFiles()
-                  : null,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 240,
-                height: 64,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      appState.status == AppStatus.processing 
-                          ? Icons.hourglass_empty 
-                          : Icons.play_arrow,
+          child: GestureDetector(
+            onTap: isReady && appState.status != AppStatus.processing
+                ? () => ref.read(appStateProvider.notifier).processFiles()
+                : null,
+            child: Container(
+              width: 240,
+              height: 64,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    appState.status == AppStatus.processing 
+                        ? Icons.hourglass_empty 
+                        : Icons.play_arrow,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    appState.status == AppStatus.processing 
+                        ? '処理中...' 
+                        : '変換して保存',
+                    style: const TextStyle(
                       color: Colors.white,
-                      size: 28,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
-                    const SizedBox(width: 16),
-                    Text(
-                      appState.status == AppStatus.processing 
-                          ? '処理中...' 
-                          : '変換して保存',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 
 class FileService {
   // フォルダを開く
@@ -168,6 +169,17 @@ class FileService {
       }
       return null;
     } catch (e) {
+      return null;
+    }
+  }
+
+  // フォルダを選択
+  static Future<String?> pickDirectory() async {
+    try {
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+      return selectedDirectory;
+    } catch (e) {
+      print('フォルダ選択エラー: $e');
       return null;
     }
   }

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_state_provider.dart';
 import '../widgets/file_selector.dart';
-import '../widgets/neumorphic_button.dart';
 import '../widgets/neumorphic_container.dart';
 import '../widgets/neumorphic_progress_indicator.dart';
 import '../widgets/neumorphic_text_field.dart';
+import '../widgets/pdf_conversion_widget.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +24,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _employeeNameController = TextEditingController();
+    
+    // タブ切り替え時のリスナーを追加
+    _tabController.addListener(() {
+      // タブが切り替わった時にUIを更新
+      if (_tabController.indexIsChanging) {
+        print('Tab changing from ${_tabController.previousIndex} to ${_tabController.index}');
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -48,6 +57,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     
     return Scaffold(
       backgroundColor: const Color(0xFFE8EAED),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        toolbarHeight: 0,
+      ),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
@@ -68,15 +83,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
+                        key: ValueKey(_tabController.index), // タブ切り替え時に強制的に再構築
                         children: [
-                          _buildAutoTransferTab(context, ref, isSmallScreen),
-                          _buildPdfConversionTab(isSmallScreen),
+                          SingleChildScrollView(
+                            child: _buildAutoTransferTab(context, ref, isSmallScreen),
+                          ),
+                          SingleChildScrollView(
+                            child: _buildPdfConversionTab(isSmallScreen),
+                          ),
                         ],
                       ),
                     ),
                     
-                    // 実行ボタン
-                    _buildExecuteButton(context, ref, isSmallScreen),
+                    // タブに応じた実行ボタン
+                    _buildTabSpecificButton(context, ref, isSmallScreen),
                   ],
                 ),
         ),
@@ -116,15 +136,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Container(
         padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF3498DB),
-              Color(0xFF2980B9),
-            ],
-          ),
+          color: const Color(0xFF3498DB),
           borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -184,6 +204,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         decoration: BoxDecoration(
           color: const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: TabBar(
           controller: _tabController,
@@ -356,8 +383,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               SizedBox(height: isSmallScreen ? 24 : 32),
               
               // ステータス表示（エラー時のみ表示）
-              if (ref.watch(appStateProvider).status == AppStatus.error)
-                _buildStatusSection(ref),
+              if (ref.watch(appStateProvider).autoTransferStatus == AppStatus.error)
+                _buildAutoTransferStatusSection(ref),
               
 
             ],
@@ -368,45 +395,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Widget _buildPdfConversionTab(bool isSmallScreen) {
-    return NeumorphicContainer(
-      padding: EdgeInsets.all(isSmallScreen ? 24 : 32),
-      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.picture_as_pdf,
-              size: isSmallScreen ? 48 : 64,
-              color: const Color(0xFF3498DB),
-            ),
-            SizedBox(height: isSmallScreen ? 16 : 24),
-            Text(
-              'PDF変換機能',
-              style: TextStyle(
-                fontSize: isSmallScreen ? 20 : 24,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF2C3E50),
-              ),
-            ),
-            SizedBox(height: isSmallScreen ? 12 : 16),
-            Text(
-              'この機能は現在開発中です。\n近日公開予定です。',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                color: const Color(0xFF7F8C8D),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return PdfConversionWidget(isSmallScreen: isSmallScreen);
   }
   
-  Widget _buildStatusSection(WidgetRef ref) {
-    final status = ref.watch(appStateProvider).status;
-    final message = ref.watch(appStateProvider).statusMessage;
+  Widget _buildAutoTransferStatusSection(WidgetRef ref) {
+    final status = ref.watch(appStateProvider).autoTransferStatus;
+    final message = ref.watch(appStateProvider).autoTransferStatusMessage;
     
     Color statusColor;
     IconData statusIcon;
@@ -472,24 +466,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   
 
   
-  Widget _buildExecuteButton(BuildContext context, WidgetRef ref, bool isSmallScreen) {
+  Widget _buildTabSpecificButton(BuildContext context, WidgetRef ref, bool isSmallScreen) {
+    final currentTabIndex = _tabController.index;
+    
+    // デバッグログ
+    print('Building tab specific button for index: $currentTabIndex');
+    
+    // タブに応じて専用のボタンを表示
+    switch (currentTabIndex) {
+      case 0:
+        print('Building auto transfer button');
+        return _buildAutoTransferButton(context, ref, isSmallScreen);
+      case 1:
+        print('Building PDF conversion button');
+        return _buildPdfConversionButton(context, ref, isSmallScreen);
+      default:
+        print('Building empty button for unknown tab');
+        return const SizedBox.shrink();
+    }
+  }
+  
+  Widget _buildAutoTransferButton(BuildContext context, WidgetRef ref, bool isSmallScreen) {
     final appState = ref.watch(appStateProvider);
     final isReady = appState.csvPath.isNotEmpty && 
                    appState.templatePath.isNotEmpty &&
                    appState.employeeName.isNotEmpty;
     
-    // デバッグログ
-    print('Button state: csvPath=${appState.csvPath.isNotEmpty}, templatePath=${appState.templatePath.isNotEmpty}, employeeName=${appState.employeeName.isNotEmpty}');
-    print('Template path: ${appState.templatePath}');
-    print('Is ready: $isReady');
+    String buttonText = appState.autoTransferStatus == AppStatus.processing 
+        ? '処理中...' 
+        : appState.autoTransferStatus == AppStatus.success
+            ? '変換完了'
+            : '自動転記を実行';
+    IconData buttonIcon = appState.autoTransferStatus == AppStatus.processing 
+        ? Icons.hourglass_empty 
+        : appState.autoTransferStatus == AppStatus.success
+            ? Icons.check_circle
+            : Icons.play_arrow;
+    VoidCallback? onPressed = isReady && appState.autoTransferStatus != AppStatus.processing
+        ? () {
+            print('=== 自動転記ボタンクリックイベント開始 ===');
+            ref.read(appStateProvider.notifier).processFiles();
+            print('=== 自動転記ボタンクリックイベント完了 ===');
+          }
+        : null;
     
     return Container(
       margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
       child: Center(
         child: Container(
           decoration: BoxDecoration(
-            gradient: isReady && appState.status != AppStatus.processing
-                ? appState.status == AppStatus.success
+            gradient: isReady && appState.autoTransferStatus != AppStatus.processing
+                ? appState.autoTransferStatus == AppStatus.success
                     ? const LinearGradient(
                         colors: [Color(0xFF27AE60), Color(0xFF229954)],
                       )
@@ -500,8 +527,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     colors: [Color(0xFFBDC3C7), Color(0xFF95A5A6)],
                   ),
             borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
-            boxShadow: isReady && appState.status != AppStatus.processing
-                ? appState.status == AppStatus.success
+            boxShadow: isReady && appState.autoTransferStatus != AppStatus.processing
+                ? appState.autoTransferStatus == AppStatus.success
                     ? [
                         BoxShadow(
                           color: const Color(0xFF27AE60).withOpacity(0.4),
@@ -534,54 +561,143 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                   ],
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: isReady && appState.status != AppStatus.processing
-                  ? () {
-                      print('=== ボタンクリックイベント開始 ===');
-                      print('isReady: $isReady');
-                      print('appState.status: ${appState.status}');
-                      ref.read(appStateProvider.notifier).processFiles();
-                      print('=== ボタンクリックイベント完了 ===');
-                    }
-                  : null,
-              borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
-              child: Container(
-                width: isSmallScreen ? 200 : 240,
-                height: isSmallScreen ? 56 : 64,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSmallScreen ? 24 : 32, 
-                  vertical: isSmallScreen ? 12 : 16
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      appState.status == AppStatus.processing 
-                          ? Icons.hourglass_empty 
-                          : appState.status == AppStatus.success
-                              ? Icons.check_circle
-                              : Icons.play_arrow,
+          child: GestureDetector(
+            onTap: onPressed,
+            child: Container(
+              width: isSmallScreen ? 200 : 240,
+              height: isSmallScreen ? 56 : 64,
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 24 : 32, 
+                vertical: isSmallScreen ? 12 : 16
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    buttonIcon,
+                    color: Colors.white,
+                    size: isSmallScreen ? 24 : 28,
+                  ),
+                  SizedBox(width: isSmallScreen ? 12 : 16),
+                  Text(
+                    buttonText,
+                    style: TextStyle(
                       color: Colors.white,
-                      size: isSmallScreen ? 24 : 28,
+                      fontSize: isSmallScreen ? 16 : 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
-                    SizedBox(width: isSmallScreen ? 12 : 16),
-                    Text(
-                      appState.status == AppStatus.processing 
-                          ? '処理中...' 
-                          : appState.status == AppStatus.success
-                              ? '変換完了'
-                              : '変換して保存',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: isSmallScreen ? 16 : 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildPdfConversionButton(BuildContext context, WidgetRef ref, bool isSmallScreen) {
+    final appState = ref.watch(appStateProvider);
+    final isReady = appState.selectedFiles.isNotEmpty;
+    
+    String buttonText = appState.pdfConversionStatus == AppStatus.processing 
+        ? '変換中...' 
+        : appState.pdfConversionStatus == AppStatus.success
+            ? '変換完了'
+            : 'PDFに変換';
+    IconData buttonIcon = appState.pdfConversionStatus == AppStatus.processing 
+        ? Icons.hourglass_empty 
+        : appState.pdfConversionStatus == AppStatus.success
+            ? Icons.check_circle
+            : Icons.picture_as_pdf;
+    VoidCallback? onPressed = isReady && appState.pdfConversionStatus != AppStatus.processing
+        ? () {
+            print('=== PDF変換ボタンクリックイベント開始 ===');
+            ref.read(appStateProvider.notifier).processPdfConversion();
+            print('=== PDF変換ボタンクリックイベント完了 ===');
+          }
+        : null;
+    
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: isReady && appState.pdfConversionStatus != AppStatus.processing
+                ? appState.pdfConversionStatus == AppStatus.success
+                    ? const LinearGradient(
+                        colors: [Color(0xFF27AE60), Color(0xFF229954)],
+                      )
+                    : const LinearGradient(
+                        colors: [Color(0xFFE74C3C), Color(0xFFC0392B)],
+                      )
+                : const LinearGradient(
+                    colors: [Color(0xFFBDC3C7), Color(0xFF95A5A6)],
+                  ),
+            borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
+            boxShadow: isReady && appState.pdfConversionStatus != AppStatus.processing
+                ? appState.pdfConversionStatus == AppStatus.success
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF27AE60).withOpacity(0.4),
+                          blurRadius: isSmallScreen ? 12 : 15,
+                          offset: Offset(0, isSmallScreen ? 6 : 8),
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.9),
+                          blurRadius: isSmallScreen ? 12 : 15,
+                          offset: Offset(isSmallScreen ? -4 : -6, isSmallScreen ? -4 : -6),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: const Color(0xFFE74C3C).withOpacity(0.4),
+                          blurRadius: isSmallScreen ? 12 : 15,
+                          offset: Offset(0, isSmallScreen ? 6 : 8),
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.9),
+                          blurRadius: isSmallScreen ? 12 : 15,
+                          offset: Offset(isSmallScreen ? -4 : -6, isSmallScreen ? -4 : -6),
+                        ),
+                      ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: isSmallScreen ? 6 : 8,
+                      offset: Offset(0, isSmallScreen ? 2 : 4),
                     ),
                   ],
-                ),
+          ),
+          child: GestureDetector(
+            onTap: onPressed,
+            child: Container(
+              width: isSmallScreen ? 200 : 240,
+              height: isSmallScreen ? 56 : 64,
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 24 : 32, 
+                vertical: isSmallScreen ? 12 : 16
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    buttonIcon,
+                    color: Colors.white,
+                    size: isSmallScreen ? 24 : 28,
+                  ),
+                  SizedBox(width: isSmallScreen ? 12 : 16),
+                  Text(
+                    buttonText,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isSmallScreen ? 16 : 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
