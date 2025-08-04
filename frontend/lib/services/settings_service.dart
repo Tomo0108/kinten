@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import 'dart:io';
 
 class SettingsService {
@@ -20,7 +21,7 @@ class SettingsService {
     
     // デフォルトパスを使用する場合は絶対パスに変換
     final projectRoot = await getProjectRoot();
-    return '$projectRoot/$_defaultTemplatePath';
+    return path.join(projectRoot, _defaultTemplatePath);
   }
 
   // テンプレートパスを保存
@@ -40,7 +41,7 @@ class SettingsService {
     
     // デフォルトの出力先を使用
     final projectRoot = await getProjectRoot();
-    return '$projectRoot/output';
+    return path.join(projectRoot, 'output');
   }
 
   // 出力先パスを保存
@@ -58,30 +59,46 @@ class SettingsService {
   // プロジェクトルートの絶対パスを取得
   static Future<String> getProjectRoot() async {
     final currentDir = Directory.current.path;
-    print('Current directory: $currentDir'); // デバッグログ
+    print('Current directory: $currentDir');
     
-    // Flutterアプリがビルドされて実行される場合のパス処理
-    if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-      // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-      final releaseDir = Directory(currentDir);
-      final runnerDir = releaseDir.parent;
-      final x64Dir = runnerDir.parent;
-      final windowsDir = x64Dir.parent;
-      final buildDir = windowsDir.parent;
-      final frontendDir = buildDir.parent;
-      final projectRoot = frontendDir.parent;
-      print('Project root (from Release): ${projectRoot.path}'); // デバッグログ
-      return projectRoot.path;
+    // ビルドディレクトリのパターンを定義（プラットフォームに依存しない）
+    final buildPatterns = [
+      // Windows
+      path.join('frontend', 'build', 'windows', 'x64', 'runner', 'Release'),
+      // macOS
+      path.join('frontend', 'build', 'macos', 'Build', 'Products', 'Release'),
+      // Linux
+      path.join('frontend', 'build', 'linux', 'x64', 'release', 'bundle'),
+    ];
+    
+    // 現在のディレクトリがビルドディレクトリ配下かチェック
+    for (final pattern in buildPatterns) {
+      if (currentDir.contains(pattern)) {
+        // ビルドディレクトリから適切な階層数だけ上に移動
+        var projectDir = Directory(currentDir);
+        
+        // 'Release', 'bundle' から 'frontend' まで遡る
+        while (projectDir.path != projectDir.parent.path) {
+          if (path.basename(projectDir.path) == 'frontend') {
+            final projectRoot = projectDir.parent.path;
+            print('Project root (from build directory): $projectRoot');
+            return projectRoot;
+          }
+          projectDir = projectDir.parent;
+        }
+        break;
+      }
     }
     
-    // 開発時のパス処理
-    if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
+    // frontendディレクトリで実行されている場合
+    if (path.basename(currentDir) == 'frontend') {
       final projectRoot = Directory(currentDir).parent.path;
-      print('Project root (from frontend): $projectRoot'); // デバッグログ
+      print('Project root (from frontend): $projectRoot');
       return projectRoot;
     }
     
-    print('Project root (current): $currentDir'); // デバッグログ
+    // その他の場合は現在のディレクトリを使用
+    print('Project root (current): $currentDir');
     return currentDir;
   }
 
@@ -89,7 +106,7 @@ class SettingsService {
   static Future<bool> isDefaultTemplateAvailable() async {
     try {
       final projectRoot = await getProjectRoot();
-      final templatePath = '$projectRoot/$_defaultTemplatePath';
+      final templatePath = path.join(projectRoot, _defaultTemplatePath);
       final file = File(templatePath);
       return await file.exists();
     } catch (e) {
@@ -120,7 +137,7 @@ class SettingsService {
     
     // デフォルトの出力先を使用
     final projectRoot = await getProjectRoot();
-    return '$projectRoot/output';
+    return path.join(projectRoot, 'output');
   }
 
   // PDF出力フォルダを保存

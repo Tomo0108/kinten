@@ -1,8 +1,10 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
-import '../services/settings_service.dart';
+import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/file_service.dart';
+import '../services/settings_service.dart';
+import 'package:path/path.dart' as path;
 
 enum AppStatus {
   idle,
@@ -382,28 +384,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
   Future<Map<String, dynamic>> _callPythonBackend() async {
     try {
       // プロジェクトルートを取得
-      final currentDir = Directory.current.path;
-      print('Current directory (Python backend): $currentDir'); // デバッグログ
-      
-      String projectRoot;
-      // Flutterアプリがビルドされて実行される場合のパス処理
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-        final releaseDir = Directory(currentDir);
-        final runnerDir = releaseDir.parent;
-        final x64Dir = runnerDir.parent;
-        final windowsDir = x64Dir.parent;
-        final buildDir = windowsDir.parent;
-        final frontendDir = buildDir.parent;
-        projectRoot = frontendDir.parent.path;
-        print('Project root (from Release - Python): $projectRoot'); // デバッグログ
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
-        projectRoot = Directory(currentDir).parent.path;
-        print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
-      } else {
-        projectRoot = currentDir;
-        print('Project root (current - Python): $projectRoot'); // デバッグログ
-      }
+      final projectRoot = _getProjectRoot();
       
       // ファイル存在チェック
       final csvFile = File(state.csvPath);
@@ -617,24 +598,7 @@ except Exception as e:
   Future<Map<String, dynamic>> _callPdfPythonBackend() async {
     try {
       // プロジェクトルートを取得
-      final currentDir = Directory.current.path;
-      String projectRoot;
-      
-      // パス解決ロジックを修正
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-        final releaseDir = Directory(currentDir);
-        final runnerDir = releaseDir.parent;
-        final x64Dir = runnerDir.parent;
-        final windowsDir = x64Dir.parent;
-        final buildDir = windowsDir.parent;
-        final frontendDir = buildDir.parent;
-        projectRoot = frontendDir.parent.path;
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
-        projectRoot = Directory(currentDir).parent.path;
-      } else {
-        projectRoot = currentDir;
-      }
+      final projectRoot = _getProjectRoot();
       
       // 出力フォルダを作成
       final outputFolderResult = await _createPdfOutputFolder(projectRoot);
@@ -725,29 +689,8 @@ except Exception as e:
   // Excelファイル取得用のPythonバックエンド呼び出し
   Future<Map<String, dynamic>> _callGetExcelFilesBackend() async {
     try {
-      final currentDir = Directory.current.path;
-      String projectRoot;
-      
-      print('Current directory: $currentDir'); // デバッグログ
-      
-      // パス解決ロジックを修正
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-        final releaseDir = Directory(currentDir);
-        final runnerDir = releaseDir.parent;
-        final x64Dir = runnerDir.parent;
-        final windowsDir = x64Dir.parent;
-        final buildDir = windowsDir.parent;
-        final frontendDir = buildDir.parent;
-        projectRoot = frontendDir.parent.path;
-        print('Project root (from Release): $projectRoot'); // デバッグログ
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
-        projectRoot = Directory(currentDir).parent.path;
-        print('Project root (from frontend): $projectRoot'); // デバッグログ
-      } else {
-        projectRoot = currentDir;
-        print('Project root (current): $projectRoot'); // デバッグログ
-      }
+      // プロジェクトルートを取得
+      final projectRoot = _getProjectRoot();
       
       print('Project root: $projectRoot'); // デバッグログ
       print('PDF input folder: ${state.pdfInputFolder}'); // デバッグログ
@@ -1059,6 +1002,52 @@ except Exception as e:
         };
       }
     }
+
+  // クロスプラットフォーム対応のプロジェクトルート取得
+  String _getProjectRoot() {
+    final currentDir = Directory.current.path;
+    print('Current directory: $currentDir');
+    
+    // ビルドディレクトリのパターンを定義（プラットフォームに依存しない）
+    final buildPatterns = [
+      // Windows
+      path.join('frontend', 'build', 'windows', 'x64', 'runner', 'Release'),
+      // macOS
+      path.join('frontend', 'build', 'macos', 'Build', 'Products', 'Release'),
+      // Linux
+      path.join('frontend', 'build', 'linux', 'x64', 'release', 'bundle'),
+    ];
+    
+    // 現在のディレクトリがビルドディレクトリ配下かチェック
+    for (final pattern in buildPatterns) {
+      if (currentDir.contains(pattern)) {
+        // ビルドディレクトリから適切な階層数だけ上に移動
+        var projectDir = Directory(currentDir);
+        
+        // 'Release', 'bundle' から 'frontend' まで遡る
+        while (projectDir.path != projectDir.parent.path) {
+          if (path.basename(projectDir.path) == 'frontend') {
+            final projectRoot = projectDir.parent.path;
+            print('Project root (from build directory): $projectRoot');
+            return projectRoot;
+          }
+          projectDir = projectDir.parent;
+        }
+        break;
+      }
+    }
+    
+    // frontendディレクトリで実行されている場合
+    if (path.basename(currentDir) == 'frontend') {
+      final projectRoot = Directory(currentDir).parent.path;
+      print('Project root (from frontend): $projectRoot');
+      return projectRoot;
+    }
+    
+    // その他の場合は現在のディレクトリを使用
+    print('Project root (current): $currentDir');
+    return currentDir;
+  }
 }
 
 final appStateProvider = StateNotifierProvider<AppStateNotifier, AppState>(
