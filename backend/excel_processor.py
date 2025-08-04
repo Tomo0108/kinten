@@ -106,8 +106,9 @@ class ExcelProcessor:
             # F5: 年
             self.sheet['F5'] = year
             
-            # H5: 月
-            self.sheet['H5'] = month
+            # H5: 月（先頭の0を除去して数値として設定）
+            month_num = int(month)  # "06" → 6
+            self.sheet['H5'] = month_num
             
             return True
             
@@ -134,16 +135,8 @@ class ExcelProcessor:
             for index, row in df.iterrows():
                 current_row = start_row + int(index)  # type: ignore
                 
-                # A列: 日付（日付のみを抽出）
-                date_str = str(row['日付'])
-                if '/' in date_str:
-                    day = date_str.split('/')[-1]  # 最後の部分（日）を取得
-                    self.sheet[f'A{current_row}'] = int(day)
-                else:
-                    self.sheet[f'A{current_row}'] = row['日付']
-                
-                # B列: 曜日（雛形ファイルの関数を使用）
-                # 値は設定しない（雛形ファイルの関数が自動計算）
+                # A列・B列: 日付と曜日は編集しない（雛形ファイルの関数が自動生成）
+                # H5セルの月数を基準に雛形ファイルの関数が自動的に日付と曜日を設定
                 
                 # C列: 始業時刻
                 self.sheet[f'C{current_row}'] = row['始業時刻1']

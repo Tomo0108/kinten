@@ -566,10 +566,8 @@ except Exception as e:
         await tempFile.writeAsString(pythonCode);
         print('Python script saved to: ${tempFile.path}');
         
-        // 仮想環境のPythonを使用（絶対パスで指定）
-        final pythonCommand = Platform.isWindows 
-            ? '${projectRoot}\\venv\\Scripts\\python.exe'
-            : '${projectRoot}/venv/bin/python';
+        // システムのPythonを使用
+        final pythonCommand = 'python';
         print('Using Python command: $pythonCommand');
         
         // Python実行時の環境変数を設定
@@ -577,7 +575,7 @@ except Exception as e:
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
           'PYTHONPATH': '${projectRoot}\\backend',
-          'PATH': '${projectRoot}\\venv\\Scripts;${Platform.environment['PATH']}',
+          'PATH': '${Platform.environment['PATH']}',
         };
         
         final result = await Process.run(pythonCommand, [
@@ -681,15 +679,13 @@ except Exception as e:
       try {
         await tempFile.writeAsString(pythonCode);
         
-        final pythonCommand = Platform.isWindows 
-            ? '${projectRoot}\\venv\\Scripts\\python.exe'
-            : '${projectRoot}/venv/bin/python';
+        final pythonCommand = 'python';
         
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
           'PYTHONPATH': '${projectRoot}\\backend',
-          'PATH': '${projectRoot}\\venv\\Scripts;${Platform.environment['PATH']}',
+          'PATH': '${Platform.environment['PATH']}',
         };
         
         final result = await Process.run(pythonCommand, [
@@ -761,6 +757,12 @@ import sys
 import os
 import json
 
+# 文字コード設定
+import locale
+print(f"Default encoding: {sys.getdefaultencoding()}")
+print(f"File system encoding: {sys.getfilesystemencoding()}")
+print(f"Locale encoding: {locale.getpreferredencoding()}")
+
 print(f"Python version: {sys.version}")
 print(f"Current working directory: {os.getcwd()}")
 print(f"Project root: {r"$projectRoot"}")
@@ -783,21 +785,34 @@ try:
     
     folder_path = r"${state.pdfInputFolder}"
     print(f"Folder path: {folder_path}")
+    print(f"Folder path type: {type(folder_path)}")
+    print(f"Folder path repr: {repr(folder_path)}")
     print(f"Folder exists: {os.path.exists(folder_path)}")
+    
+    # フォルダの内容を確認
+    if os.path.exists(folder_path):
+        print(f"Folder contents:")
+        for item in os.listdir(folder_path):
+            print(f"  - {item}")
     
     result = processor.get_excel_files(folder_path)
     print(f"Result: {result}")
     
-    print(json.dumps(result, ensure_ascii=False))
+    # JSON出力の文字コードテスト
+    json_output = json.dumps(result, ensure_ascii=False)
+    print(f"JSON output length: {len(json_output)}")
+    print(f"JSON output first 100 chars: {json_output[:100]}")
+    print(json_output)
     
 except Exception as e:
     print(f"❌ Exception occurred: {str(e)}")
     import traceback
     traceback.print_exc()
-    print(json.dumps({
+    error_result = {
         'success': False,
         'error': str(e)
-    }, ensure_ascii=False))
+    }
+    print(json.dumps(error_result, ensure_ascii=False))
 ''';
       
       final tempDir = Directory.systemTemp;
@@ -806,9 +821,9 @@ except Exception as e:
       try {
         await tempFile.writeAsString(pythonCode);
         
-        final pythonCommand = Platform.isWindows 
-            ? '${projectRoot}\\venv\\Scripts\\python.exe'
-            : '${projectRoot}/venv/bin/python';
+        // Pythonコマンドの決定（本番環境ではシステムPythonを優先）
+        String pythonCommand = 'python';
+        print('Using system Python: $pythonCommand');
         
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
@@ -856,9 +871,30 @@ except Exception as e:
           
           String errorMessage = stderr.isNotEmpty ? stderr : 'Pythonスクリプトがエラーで終了しました';
           
+          // stdoutからJSONレスポンスを探す
+          if (stdout.isNotEmpty) {
+            try {
+              final lines = stdout.split('\n');
+              for (final line in lines.reversed) {
+                if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+                  try {
+                    final jsonResponse = json.decode(line.trim());
+                    if (jsonResponse['success'] == false) {
+                      return jsonResponse;
+                    }
+                  } catch (e) {
+                    // JSON解析に失敗した場合は無視
+                  }
+                }
+              }
+            } catch (e) {
+              print('JSON extraction error: $e');
+            }
+          }
+          
           // 特定のエラーパターンを検出
           if (stderr.contains('ModuleNotFoundError')) {
-            errorMessage = '必要なPythonライブラリがインストールされていません。仮想環境を確認してください。';
+            errorMessage = '必要なPythonライブラリがインストールされていません。システムにPythonライブラリをインストールしてください。';
           } else if (stderr.contains('FileNotFoundError')) {
             errorMessage = '指定されたファイルまたはフォルダが見つかりません。';
           } else if (stderr.contains('PermissionError')) {
@@ -925,9 +961,7 @@ except Exception as e:
       try {
         await tempFile.writeAsString(pythonCode);
         
-        final pythonCommand = Platform.isWindows 
-            ? '${projectRoot}\\venv\\Scripts\\python.exe'
-            : '${projectRoot}/venv/bin/python';
+        final pythonCommand = 'python';
         
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
