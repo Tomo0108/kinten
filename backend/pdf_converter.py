@@ -5,6 +5,8 @@ ExcelファイルをPDFに変換する
 
 import os
 import glob
+import platform
+import subprocess
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import win32com.client
@@ -197,7 +199,7 @@ class PDFConverter:
     
     def open_folder(self, folder_path: str) -> Dict[str, Any]:
         """
-        フォルダを開く
+        フォルダを開く（クロスプラットフォーム対応）
         
         Args:
             folder_path: 開くフォルダのパス
@@ -212,14 +214,34 @@ class PDFConverter:
                     'error': f'フォルダが見つかりません: {folder_path}'
                 }
             
-            # Windowsエクスプローラーでフォルダを開く
-            os.startfile(folder_path)
+            # プラットフォーム別のフォルダを開く処理
+            system = platform.system().lower()
+            
+            if system == 'windows':
+                # Windows: os.startfile()を使用
+                os.startfile(folder_path)
+            elif system == 'darwin':
+                # macOS: openコマンドを使用
+                subprocess.run(['open', folder_path], check=True)
+            elif system == 'linux':
+                # Linux: xdg-openコマンドを使用
+                subprocess.run(['xdg-open', folder_path], check=True)
+            else:
+                return {
+                    'success': False,
+                    'error': f'サポートされていないプラットフォーム: {system}'
+                }
             
             return {
                 'success': True,
                 'message': f'フォルダを開きました: {folder_path}'
             }
             
+        except subprocess.CalledProcessError as e:
+            return {
+                'success': False,
+                'error': f'フォルダを開くコマンドエラー: {str(e)}'
+            }
         except Exception as e:
             return {
                 'success': False,
