@@ -188,7 +188,82 @@ class KintenProcessor:
         Returns:
             結果辞書
         """
-        return self.pdf_converter.convert_to_pdf(excel_files, output_folder)
+        try:
+            # 現在の日付から作業月を取得（YYYYMM形式）
+            from datetime import datetime
+            current_date = datetime.now()
+            work_month = current_date.strftime("%Y%m")
+            
+            # 作業月フォルダを作成（例：202507）
+            work_month_folder = os.path.join(output_folder, work_month)
+            os.makedirs(work_month_folder, exist_ok=True)
+            
+            # PDF変換を実行（作業月フォルダに出力）
+            result = self.pdf_converter.convert_to_pdf(excel_files, work_month_folder)
+            
+            # 変換されたファイル数を追加
+            if result['success']:
+                result['converted_count'] = len(excel_files)
+                result['output_folder'] = work_month_folder
+            
+            return result
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"convert_excel_to_pdf error: {error_details}")
+            return {
+                'success': False,
+                'error': f"PDF変換エラー: {str(e)}",
+                'details': error_details
+            }
+    
+    def convert_folder_to_pdf(self, input_folder: str, output_folder: str) -> Dict[str, Any]:
+        """
+        フォルダ内のすべてのExcelファイルをPDFに変換
+        
+        Args:
+            input_folder: 入力フォルダパス（Excelファイルが含まれる）
+            output_folder: 出力フォルダパス
+            
+        Returns:
+            結果辞書
+        """
+        try:
+            # フォルダ内のExcelファイルを取得
+            excel_files_result = self.get_excel_files(input_folder)
+            if not excel_files_result['success']:
+                return excel_files_result
+            
+            excel_files = excel_files_result['files']
+            if not excel_files:
+                return {
+                    'success': False,
+                    'error': 'フォルダ内にExcelファイルが見つかりませんでした'
+                }
+            
+            # ファイルパスのリストを作成
+            file_paths = [file['path'] for file in excel_files]
+            
+            # PDF変換を実行
+            result = self.pdf_converter.convert_to_pdf(file_paths, output_folder)
+            
+            # 変換されたファイル数を追加
+            if result['success']:
+                result['converted_count'] = len(file_paths)
+                result['output_folder'] = output_folder
+            
+            return result
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"convert_folder_to_pdf error: {error_details}")
+            return {
+                'success': False,
+                'error': f"フォルダ変換エラー: {str(e)}",
+                'details': error_details
+            }
     
     def open_folder(self, folder_path: str) -> Dict[str, Any]:
         """

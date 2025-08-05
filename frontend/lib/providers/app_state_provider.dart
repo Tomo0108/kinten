@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:path/path.dart' as path;
 import '../services/settings_service.dart';
 import '../services/file_service.dart';
 
@@ -24,10 +25,7 @@ class AppState {
   final String? autoTransferErrorMessage;
   
   // PDF変換機能用の状態
-  final String pdfInputFolder;
-  final List<Map<String, dynamic>> excelFiles;
-  final List<String> selectedFiles;
-  final bool selectAllFiles;
+  final List<String> selectedExcelFiles;
   final AppStatus pdfConversionStatus;
   final String pdfConversionStatusMessage;
   final String? pdfConversionErrorMessage;
@@ -41,10 +39,7 @@ class AppState {
     this.autoTransferStatus = AppStatus.idle,
     this.autoTransferStatusMessage = '',
     this.autoTransferErrorMessage,
-    this.pdfInputFolder = '',
-    this.excelFiles = const [],
-    this.selectedFiles = const [],
-    this.selectAllFiles = false,
+    this.selectedExcelFiles = const [],
     this.pdfConversionStatus = AppStatus.idle,
     this.pdfConversionStatusMessage = '',
     this.pdfConversionErrorMessage,
@@ -59,10 +54,7 @@ class AppState {
     AppStatus? autoTransferStatus,
     String? autoTransferStatusMessage,
     String? autoTransferErrorMessage,
-    String? pdfInputFolder,
-    List<Map<String, dynamic>>? excelFiles,
-    List<String>? selectedFiles,
-    bool? selectAllFiles,
+    List<String>? selectedExcelFiles,
     AppStatus? pdfConversionStatus,
     String? pdfConversionStatusMessage,
     String? pdfConversionErrorMessage,
@@ -76,10 +68,7 @@ class AppState {
       autoTransferStatus: autoTransferStatus ?? this.autoTransferStatus,
       autoTransferStatusMessage: autoTransferStatusMessage ?? this.autoTransferStatusMessage,
       autoTransferErrorMessage: autoTransferErrorMessage ?? this.autoTransferErrorMessage,
-      pdfInputFolder: pdfInputFolder ?? this.pdfInputFolder,
-      excelFiles: excelFiles ?? this.excelFiles,
-      selectedFiles: selectedFiles ?? this.selectedFiles,
-      selectAllFiles: selectAllFiles ?? this.selectAllFiles,
+      selectedExcelFiles: selectedExcelFiles ?? this.selectedExcelFiles,
       pdfConversionStatus: pdfConversionStatus ?? this.pdfConversionStatus,
       pdfConversionStatusMessage: pdfConversionStatusMessage ?? this.pdfConversionStatusMessage,
       pdfConversionErrorMessage: pdfConversionErrorMessage ?? this.pdfConversionErrorMessage,
@@ -135,42 +124,33 @@ class AppStateNotifier extends StateNotifier<AppState> {
     await SettingsService.setOutputPath(path);
   }
 
-  // PDF変換機能用のメソッド
-  void setPdfInputFolder(String path) {
-    state = state.copyWith(pdfInputFolder: path);
+  // setPdfInputFolderメソッドは削除（ファイル選択方式に変更）
+
+
+
+  // PDF変換機能用のファイル選択メソッド
+  void setSelectedExcelFiles(List<String> files) {
+    state = state.copyWith(selectedExcelFiles: files);
   }
 
-
-
-  void setExcelFiles(List<Map<String, dynamic>> files) {
-    state = state.copyWith(excelFiles: files);
-  }
-
-  void setSelectedFiles(List<String> files) {
-    state = state.copyWith(selectedFiles: files);
-  }
-
-  void setSelectAllFiles(bool selectAll) {
-    state = state.copyWith(selectAllFiles: selectAll);
-  }
-
-  void toggleFileSelection(String filePath) {
-    final currentSelected = List<String>.from(state.selectedFiles);
-    if (currentSelected.contains(filePath)) {
-      currentSelected.remove(filePath);
-    } else {
-      currentSelected.add(filePath);
+  void addExcelFiles(List<String> files) {
+    final currentFiles = List<String>.from(state.selectedExcelFiles);
+    for (final file in files) {
+      if (!currentFiles.contains(file)) {
+        currentFiles.add(file);
+      }
     }
-    state = state.copyWith(selectedFiles: currentSelected);
+    state = state.copyWith(selectedExcelFiles: currentFiles);
   }
 
-  void selectAllExcelFiles() {
-    final allPaths = state.excelFiles.map((file) => file['path'] as String).toList();
-    state = state.copyWith(selectedFiles: allPaths, selectAllFiles: true);
+  void removeExcelFile(String filePath) {
+    final currentFiles = List<String>.from(state.selectedExcelFiles);
+    currentFiles.remove(filePath);
+    state = state.copyWith(selectedExcelFiles: currentFiles);
   }
 
-  void deselectAllExcelFiles() {
-    state = state.copyWith(selectedFiles: [], selectAllFiles: false);
+  void clearSelectedExcelFiles() {
+    state = state.copyWith(selectedExcelFiles: []);
   }
 
   // 自動転記機能用のステータス管理
@@ -221,25 +201,14 @@ class AppStateNotifier extends StateNotifier<AppState> {
     );
   }
 
-  // 後方互換性のためのメソッド（削除予定）
-  void setStatus(AppStatus status, String message) {
-    setAutoTransferStatus(status, message);
-  }
 
-  void setError(String errorMessage) {
-    setAutoTransferError(errorMessage);
-  }
-
-  void resetStatus() {
-    resetAutoTransferStatus();
-  }
 
   // 出力フォルダを開く
   Future<void> openOutputFolder() async {
     if (state.outputPath.isNotEmpty) {
       final success = await FileService.openFolder(state.outputPath);
       if (!success) {
-        setError('フォルダを開けませんでした: ${state.outputPath}');
+        setAutoTransferError('フォルダを開けませんでした: ${state.outputPath}');
       }
     }
   }
@@ -308,18 +277,34 @@ class AppStateNotifier extends StateNotifier<AppState> {
     }
   }
 
-  // PDF変換処理
+  // PDF変換処理（ファイル選択版）
   Future<void> processPdfConversion() async {
     try {
+      // 選択されたファイルのチェック
+      if (state.selectedExcelFiles.isEmpty) {
+        setPdfConversionError('Excelファイルが選択されていません');
+        return;
+      }
+
+      // ファイルの存在チェック
+      for (final filePath in state.selectedExcelFiles) {
+        final file = File(filePath);
+        if (!await file.exists()) {
+          setPdfConversionError('ファイルが見つかりません: $filePath');
+          return;
+        }
+      }
+
       // 処理開始
-      setPdfConversionStatus(AppStatus.processing, 'PDF変換中...');
+      setPdfConversionStatus(AppStatus.processing, '選択されたExcelファイルをPDFに変換中...');
 
       // Pythonバックエンドとの連携処理
       final result = await _callPdfPythonBackend();
       
       if (result['success']) {
         // 成功
-        setPdfConversionStatus(AppStatus.success, 'PDF変換が完了しました！');
+        final convertedCount = result['converted_count'] ?? 0;
+        setPdfConversionStatus(AppStatus.success, '$convertedCount個のファイルをPDFに変換しました！');
         
         // 出力フォルダを自動的に開く
         if (result['output_folder'] != null) {
@@ -338,46 +323,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
     }
   }
 
-  // Excelファイル取得処理
-  Future<void> getExcelFiles() async {
-    try {
-      if (state.pdfInputFolder.isEmpty) {
-        setPdfConversionError('入力フォルダが指定されていません');
-        return;
-      }
-
-      // フォルダの存在チェックを追加
-      final folder = Directory(state.pdfInputFolder);
-      if (!await folder.exists()) {
-        setPdfConversionError('指定されたフォルダが存在しません: ${state.pdfInputFolder}');
-        return;
-      }
-
-      setPdfConversionStatus(AppStatus.processing, 'Excelファイルを取得中...');
-      
-      final result = await _callGetExcelFilesBackend();
-      
-      print('Excel files result: $result'); // デバッグログ
-      
-      if (result['success']) {
-        final files = List<Map<String, dynamic>>.from(result['files'] ?? []);
-        print('Found ${files.length} Excel files'); // デバッグログ
-        setExcelFiles(files);
-        if (files.isEmpty) {
-          setPdfConversionStatus(AppStatus.idle, 'フォルダ内にExcelファイルが見つかりませんでした');
-        } else {
-          setPdfConversionStatus(AppStatus.idle, '${files.length}個のExcelファイルが見つかりました');
-        }
-      } else {
-        print('Excel files error: ${result['error']}'); // デバッグログ
-        setPdfConversionError(result['error'] ?? 'Excelファイルの取得に失敗しました');
-      }
-      
-    } catch (e) {
-      print('Excel files exception: $e'); // デバッグログ
-      setPdfConversionError('Excelファイルの取得中にエラーが発生しました: $e');
-    }
-  }
+  // Excelファイル取得処理は簡素化により削除
 
   Future<Map<String, dynamic>> _callPythonBackend() async {
     try {
@@ -387,7 +333,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
       
       String projectRoot;
       // Flutterアプリがビルドされて実行される場合のパス処理
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
+      if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
         // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
         final releaseDir = Directory(currentDir);
         final runnerDir = releaseDir.parent;
@@ -397,7 +343,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
         final frontendDir = buildDir.parent;
         projectRoot = frontendDir.parent.path;
         print('Project root (from Release - Python): $projectRoot'); // デバッグログ
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
+      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
         projectRoot = Directory(currentDir).parent.path;
         print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
       } else {
@@ -433,9 +379,9 @@ class AppStateNotifier extends StateNotifier<AppState> {
       }
       
       // ファイルパスをエスケープ（より安全な方法）
-      final csvPath = state.csvPath.replaceAll('\\', '/').replaceAll('"', '\\"');
-      final templatePath = state.templatePath.replaceAll('\\', '/').replaceAll('"', '\\"');
-      final outputPath = '$projectRoot/output'.replaceAll('\\', '/').replaceAll('"', '\\"');
+      final csvPath = state.csvPath.replaceAll(path.separator, '/').replaceAll('"', '\\"');
+      final templatePath = state.templatePath.replaceAll(path.separator, '/').replaceAll('"', '\\"');
+      final outputPath = path.join(projectRoot, 'output').replaceAll(path.separator, '/').replaceAll('"', '\\"');
       final employeeName = state.employeeName.replaceAll('"', '\\"').replaceAll("'", "\\'");
       
       // デバッグログ
@@ -574,7 +520,7 @@ except Exception as e:
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
-          'PYTHONPATH': '${projectRoot}\\backend',
+          'PYTHONPATH': path.join(projectRoot, 'backend'),
           'PATH': '${Platform.environment['PATH']}',
         };
         
@@ -644,7 +590,7 @@ except Exception as e:
       
       final outputFolder = outputFolderResult['output_folder'];
       
-      // PDF変換を実行
+      // PDF変換を実行（選択されたExcelファイルを変換）
       final pythonCode = '''
 import sys
 import os
@@ -659,9 +605,10 @@ try:
     
     processor = KintenProcessor()
     
-    excel_files = ${state.selectedFiles}
+    excel_files = ${state.selectedExcelFiles}
     output_folder = r"$outputFolder"
     
+    # 選択されたExcelファイルをPDFに変換
     result = processor.convert_excel_to_pdf(excel_files, output_folder)
     
     print(json.dumps(result, ensure_ascii=False))
@@ -684,7 +631,7 @@ except Exception as e:
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
-          'PYTHONPATH': '${projectRoot}\\backend',
+          'PYTHONPATH': path.join(projectRoot, 'backend'),
           'PATH': '${Platform.environment['PATH']}',
         };
         
@@ -722,208 +669,7 @@ except Exception as e:
     }
   }
 
-  // Excelファイル取得用のPythonバックエンド呼び出し
-  Future<Map<String, dynamic>> _callGetExcelFilesBackend() async {
-    try {
-      final currentDir = Directory.current.path;
-      String projectRoot;
-      
-      print('Current directory: $currentDir'); // デバッグログ
-      
-      // パス解決ロジックを修正
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-        final releaseDir = Directory(currentDir);
-        final runnerDir = releaseDir.parent;
-        final x64Dir = runnerDir.parent;
-        final windowsDir = x64Dir.parent;
-        final buildDir = windowsDir.parent;
-        final frontendDir = buildDir.parent;
-        projectRoot = frontendDir.parent.path;
-        print('Project root (from Release): $projectRoot'); // デバッグログ
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
-        projectRoot = Directory(currentDir).parent.path;
-        print('Project root (from frontend): $projectRoot'); // デバッグログ
-      } else {
-        projectRoot = currentDir;
-        print('Project root (current): $projectRoot'); // デバッグログ
-      }
-      
-      print('Project root: $projectRoot'); // デバッグログ
-      print('PDF input folder: ${state.pdfInputFolder}'); // デバッグログ
-      
-      final pythonCode = '''
-import sys
-import os
-import json
-
-# 文字コード設定
-import locale
-print(f"Default encoding: {sys.getdefaultencoding()}")
-print(f"File system encoding: {sys.getfilesystemencoding()}")
-print(f"Locale encoding: {locale.getpreferredencoding()}")
-
-print(f"Python version: {sys.version}")
-print(f"Current working directory: {os.getcwd()}")
-print(f"Project root: {r"$projectRoot"}")
-
-# バックエンドディレクトリをPythonパスに追加
-backend_path = os.path.join(r"$projectRoot", "backend")
-print(f"Backend path: {backend_path}")
-print(f"Backend exists: {os.path.exists(backend_path)}")
-
-sys.path.insert(0, backend_path)
-print(f"Added {backend_path} to sys.path")
-print(f"Current sys.path: {sys.path}")
-
-try:
-    from main_processor import KintenProcessor
-    print("✅ Successfully imported KintenProcessor")
-    
-    processor = KintenProcessor()
-    print("✅ Successfully created KintenProcessor instance")
-    
-    folder_path = r"${state.pdfInputFolder}"
-    print(f"Folder path: {folder_path}")
-    print(f"Folder path type: {type(folder_path)}")
-    print(f"Folder path repr: {repr(folder_path)}")
-    print(f"Folder exists: {os.path.exists(folder_path)}")
-    
-    # フォルダの内容を確認
-    if os.path.exists(folder_path):
-        print(f"Folder contents:")
-        for item in os.listdir(folder_path):
-            print(f"  - {item}")
-    
-    result = processor.get_excel_files(folder_path)
-    print(f"Result: {result}")
-    
-    # JSON出力の文字コードテスト
-    json_output = json.dumps(result, ensure_ascii=False)
-    print(f"JSON output length: {len(json_output)}")
-    print(f"JSON output first 100 chars: {json_output[:100]}")
-    print(json_output)
-    
-except Exception as e:
-    print(f"❌ Exception occurred: {str(e)}")
-    import traceback
-    traceback.print_exc()
-    error_result = {
-        'success': False,
-        'error': str(e)
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-''';
-      
-      final tempDir = Directory.systemTemp;
-      final tempFile = File('${tempDir.path}/kinten_excel_script_${DateTime.now().millisecondsSinceEpoch}.py');
-      
-      try {
-        await tempFile.writeAsString(pythonCode);
-        
-        // Pythonコマンドの決定（本番環境ではシステムPythonを優先）
-        String pythonCommand = 'python';
-        print('Using system Python: $pythonCommand');
-        
-        final env = <String, String>{
-          'PYTHONIOENCODING': 'utf-8',
-          'PYTHONUTF8': '1',
-          'PYTHONPATH': '${projectRoot}\\backend',
-          'PATH': '${projectRoot}\\venv\\Scripts;${Platform.environment['PATH']}',
-        };
-        
-        final result = await Process.run(pythonCommand, [
-          tempFile.path,
-        ], workingDirectory: projectRoot, environment: env);
-        
-        print('Python process result:'); // デバッグログ
-        print('Exit code: ${result.exitCode}'); // デバッグログ
-        print('Stdout: ${result.stdout}'); // デバッグログ
-        print('Stderr: ${result.stderr}'); // デバッグログ
-        
-        await tempFile.delete();
-        
-        if (result.exitCode == 0) {
-          final output = result.stdout.toString().trim();
-          print('Python output: $output'); // デバッグログ
-          
-          if (output.isEmpty) {
-            return {
-              'success': false,
-              'error': 'Pythonスクリプトが出力を返しませんでした',
-            };
-          }
-          
-          try {
-            return json.decode(output);
-          } catch (e) {
-            print('JSON decode error: $e'); // デバッグログ
-            return {
-              'success': false,
-              'error': 'Pythonスクリプトの出力を解析できませんでした: $output',
-            };
-          }
-        } else {
-          final stderr = result.stderr.toString().trim();
-          final stdout = result.stdout.toString().trim();
-          print('Python stderr: $stderr'); // デバッグログ
-          print('Python stdout: $stdout'); // デバッグログ
-          
-          String errorMessage = stderr.isNotEmpty ? stderr : 'Pythonスクリプトがエラーで終了しました';
-          
-          // stdoutからJSONレスポンスを探す
-          if (stdout.isNotEmpty) {
-            try {
-              final lines = stdout.split('\n');
-              for (final line in lines.reversed) {
-                if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
-                  try {
-                    final jsonResponse = json.decode(line.trim());
-                    if (jsonResponse['success'] == false) {
-                      return jsonResponse;
-                    }
-                  } catch (e) {
-                    // JSON解析に失敗した場合は無視
-                  }
-                }
-              }
-            } catch (e) {
-              print('JSON extraction error: $e');
-            }
-          }
-          
-          // 特定のエラーパターンを検出
-          if (stderr.contains('ModuleNotFoundError')) {
-            errorMessage = '必要なPythonライブラリがインストールされていません。システムにPythonライブラリをインストールしてください。';
-          } else if (stderr.contains('FileNotFoundError')) {
-            errorMessage = '指定されたファイルまたはフォルダが見つかりません。';
-          } else if (stderr.contains('PermissionError')) {
-            errorMessage = 'アクセス権限がありません。フォルダの権限を確認してください。';
-          }
-          
-                  print('Final error message: $errorMessage');
-        print('=== _handlePythonResultエラー処理完了 ===');
-        return {
-          'success': false,
-          'error': errorMessage,
-        };
-      }
-    } catch (e) {
-        try {
-          await tempFile.delete();
-        } catch (_) {}
-        return {
-          'success': false,
-          'error': 'Excelファイル取得プロセスの実行に失敗しました: $e',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
-    }
-  }
+  // Excelファイル取得用のPythonバックエンド呼び出しは簡素化により削除
 
   // PDF出力フォルダ作成
   Future<Map<String, dynamic>> _createPdfOutputFolder(String projectRoot) async {
