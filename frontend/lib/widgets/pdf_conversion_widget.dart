@@ -158,17 +158,17 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
 
           // ファイル選択エリア
           NeumorphicContainer(
-            padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+            padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 選択されたファイル数表示
                 if (appState.selectedExcelFiles.isNotEmpty) ...[
                   Container(
-                    padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+                    padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
                     decoration: BoxDecoration(
                       color: const Color(0xFF27AE60).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
+                      borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
                       border: Border.all(
                         color: const Color(0xFF27AE60).withOpacity(0.1),
                       ),
@@ -176,18 +176,18 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
                     child: Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+                          padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
                           decoration: BoxDecoration(
                             color: const Color(0xFF27AE60).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
+                            borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
                           ),
                           child: Icon(
                             Icons.table_chart,
                             color: const Color(0xFF27AE60),
-                            size: isSmallScreen ? 18 : 20,
+                            size: isSmallScreen ? 20 : 22,
                           ),
                         ),
-                        SizedBox(width: isSmallScreen ? 12 : 16),
+                        SizedBox(width: isSmallScreen ? 16 : 20),
                         Expanded(
                           child: Text(
                             '${appState.selectedExcelFiles.length}個のファイルが選択されています',
@@ -201,7 +201,7 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
                       ],
                     ),
                   ),
-                  SizedBox(height: isSmallScreen ? 12 : 16),
+                  SizedBox(height: isSmallScreen ? 16 : 20),
                 ],
                 
                 // ファイル選択ボタン
@@ -226,14 +226,14 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
                         size: 20,
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        appState.selectedExcelFiles.isEmpty ? 'Excelファイルを選択（複数可）' : '追加選択',
-                        style: const TextStyle(
-                          color: Color(0xFF3498DB),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                                             Text(
+                         appState.selectedExcelFiles.isEmpty ? 'Excelファイルを選択（複数可）' : '追加選択',
+                         style: const TextStyle(
+                           color: Color(0xFF3498DB),
+                           fontSize: 16,
+                           fontWeight: FontWeight.w600,
+                         ),
+                       ),
                     ],
                   ),
                 ),
@@ -385,57 +385,57 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
 
           SizedBox(height: isSmallScreen ? 12 : 16),
 
-          // リセットボタン（シンプルなグレー背景のみ）
-          if (appState.selectedExcelFiles.isNotEmpty)
-            Container(
-              width: double.infinity,
-              height: isSmallScreen ? 44 : 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFF95A5A6),
-                borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF95A5A6).withOpacity(0.3),
-                    blurRadius: isSmallScreen ? 8 : 10,
-                    offset: Offset(0, isSmallScreen ? 4 : 5),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    ref.read(appStateProvider.notifier).clearSelectedExcelFiles();
-                  },
-                  borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 16 : 20,
-                      vertical: isSmallScreen ? 10 : 12,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.refresh,
-                          color: Colors.white,
-                          size: isSmallScreen ? 18 : 20,
-                        ),
-                        SizedBox(width: isSmallScreen ? 8 : 10),
-                        Text(
-                          'リセット',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: isSmallScreen ? 15 : 17,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+                     // リセットボタン
+           if (appState.selectedExcelFiles.isNotEmpty)
+             Container(
+               width: double.infinity,
+               height: isSmallScreen ? 44 : 48,
+               decoration: BoxDecoration(
+                 color: const Color(0xFF95A5A6),
+                 borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
+                 boxShadow: [
+                   BoxShadow(
+                     color: const Color(0xFF95A5A6).withOpacity(0.3),
+                     blurRadius: isSmallScreen ? 8 : 10,
+                     offset: Offset(0, isSmallScreen ? 4 : 5),
+                   ),
+                 ],
+               ),
+               child: Material(
+                 color: Colors.transparent,
+                 child: InkWell(
+                   onTap: () {
+                     ref.read(appStateProvider.notifier).clearSelectedExcelFiles();
+                   },
+                   borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
+                   child: Container(
+                     padding: EdgeInsets.symmetric(
+                       horizontal: isSmallScreen ? 16 : 20,
+                       vertical: isSmallScreen ? 10 : 12,
+                     ),
+                     child: Row(
+                       mainAxisAlignment: MainAxisAlignment.center,
+                       children: [
+                         Icon(
+                           Icons.refresh,
+                           color: Colors.white,
+                           size: isSmallScreen ? 18 : 20,
+                         ),
+                         SizedBox(width: isSmallScreen ? 8 : 10),
+                         Text(
+                           'リセット',
+                           style: TextStyle(
+                             color: Colors.white,
+                             fontSize: isSmallScreen ? 15 : 17,
+                             fontWeight: FontWeight.w600,
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                 ),
+               ),
+             ),
         ],
       ),
     );
@@ -514,22 +514,22 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
             color: Color(0xFF2C3E50),
           ),
         ),
-        content: const Text(
-          'ExcelファイルをPDFに変換する機能です。\n\n'
-          '1. Excelファイルを選択してください（複数選択可）\n'
-          '   - Ctrl+クリック：個別ファイル選択\n'
-          '   - Shift+クリック：範囲選択\n'
-          '   - Ctrl+A：全選択\n'
-          '2. 変換ボタンを押すとPDFファイルが生成されます\n'
-          '3. 変換されたPDFファイルは作業月フォルダに保存されます\n\n'
-          '対応形式：Excel (.xlsx, .xls)\n'
-          '出力形式：PDF',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF34495E),
-            height: 1.5,
-          ),
-        ),
+                 content: const Text(
+           'ExcelファイルをPDFに変換する機能です。\n\n'
+           '1. Excelファイルを選択してください（複数選択可）\n'
+           '   - Ctrl+クリック：個別ファイル選択\n'
+           '   - Shift+クリック：範囲選択\n'
+           '   - Ctrl+A：全選択\n'
+           '2. 変換ボタンを押すとPDFファイルが生成されます\n'
+           '3. 変換されたPDFファイルは作業月フォルダに保存されます\n\n'
+           '対応形式：Excel (.xlsx, .xls)\n'
+           '出力形式：PDF',
+           style: TextStyle(
+             fontSize: 14,
+             color: Color(0xFF34495E),
+             height: 1.5,
+           ),
+         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

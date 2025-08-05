@@ -55,51 +55,51 @@ class FileSelector extends StatelessWidget {
         const SizedBox(height: 8),
         
         NeumorphicContainer(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 選択されたファイルパス表示
               if (selectedPath.isNotEmpty) ...[
                 Container(
-                  padding: const EdgeInsets.all(12),
-                                     decoration: BoxDecoration(
-                     color: const Color(0xFF3498DB).withOpacity(0.05),
-                     borderRadius: BorderRadius.circular(8),
-                     border: Border.all(
-                       color: const Color(0xFF3498DB).withOpacity(0.1),
-                     ),
-                   ),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3498DB).withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF3498DB).withOpacity(0.1),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(6),
-                                                 decoration: BoxDecoration(
-                           color: const Color(0xFF3498DB).withOpacity(0.1),
-                           borderRadius: BorderRadius.circular(6),
-                         ),
-                                                 child: Icon(
-                           _getFileIcon(),
-                           color: const Color(0xFF3498DB),
-                           size: 18,
-                         ),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3498DB).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          _getFileIcon(),
+                          color: const Color(0xFF3498DB),
+                          size: 20,
+                        ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       Expanded(
-                                                 child: Text(
-                           selectedPath,
-                           style: const TextStyle(
-                             fontSize: 14,
-                             color: Color(0xFF2C3E50),
-                             fontWeight: FontWeight.w500,
-                           ),
-                           overflow: TextOverflow.ellipsis,
-                         ),
+                        child: Text(
+                          selectedPath,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF2C3E50),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
               ],
               
               // ファイル選択ボタン
@@ -180,6 +180,8 @@ class FileSelector extends StatelessWidget {
       type: FileType.custom,
       allowedExtensions: ['csv'],
       allowMultiple: false,
+      // プレビュー機能を無効化してパフォーマンスを向上
+      lockParentWindow: true,
     );
     
     return result?.files.single.path;
@@ -190,6 +192,8 @@ class FileSelector extends StatelessWidget {
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'xls'],
       allowMultiple: false,
+      // プレビュー機能を無効化してパフォーマンスを向上
+      lockParentWindow: true,
     );
     
     return result?.files.single.path;

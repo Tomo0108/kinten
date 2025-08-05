@@ -195,8 +195,10 @@ class FileService {
         allowMultiple: true,
         withData: false,
         withReadStream: false,
-        // プレビュー機能をオフにしてパフォーマンスを向上
+        // プレビュー機能を無効化してパフォーマンスを向上
         lockParentWindow: true,
+        // ファイル選択ダイアログのタイトル
+        dialogTitle: 'Excelファイルを選択（複数選択可）',
       );
       
       print('FilePicker結果: ${result?.files.length ?? 0}個のファイル');
