@@ -81,6 +81,44 @@ class AppStateNotifier extends StateNotifier<AppState> {
     _loadSettings();
   }
 
+  // プロジェクトルートを堅牢に解決（親を遡ってbackendが見つかる場所）
+  Future<String> _resolveProjectRoot() async {
+    try {
+      String current = Directory.current.path;
+      final seen = <String>{};
+
+      // WindowsのRelease/Debugやdist、frontend直下など全ケースに対応
+      Directory dir = Directory(current);
+      while (true) {
+        final dirPath = dir.path;
+        if (seen.contains(dirPath)) break; // 念のためループ防止
+        seen.add(dirPath);
+
+        final backendDir = Directory(path.join(dirPath, 'backend'));
+        if (await backendDir.exists()) {
+          return dirPath;
+        }
+
+        final parent = dir.parent;
+        if (parent.path == dir.path) {
+          // これ以上遡れない場合は現在のディレクトリを返す
+          return current;
+        }
+        dir = parent;
+      }
+      return current;
+    } catch (_) {
+      // フォールバック
+      return Directory.current.path;
+    }
+  }
+
+  // パスをPythonコード用に安全にエスケープ
+  String _escapePathForPython(String path) {
+    // バックスラッシュをスラッシュに変換し、特殊文字をエスケープ
+    return path.replaceAll('\\', '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
+  }
+
   // 設定を読み込み
   Future<void> _loadSettings() async {
     try {
@@ -280,10 +318,17 @@ class AppStateNotifier extends StateNotifier<AppState> {
   // PDF変換処理（ファイル選択版）
   Future<void> processPdfConversion() async {
     try {
+      print('=== PDF変換処理開始 ===');
+      
       // 選択されたファイルのチェック
       if (state.selectedExcelFiles.isEmpty) {
         setPdfConversionError('Excelファイルが選択されていません');
         return;
+      }
+
+      print('選択されたファイル数: ${state.selectedExcelFiles.length}');
+      for (final filePath in state.selectedExcelFiles) {
+        print('選択されたファイル: $filePath');
       }
 
       // ファイルの存在チェック
@@ -293,6 +338,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
           setPdfConversionError('ファイルが見つかりません: $filePath');
           return;
         }
+        print('ファイル存在確認: $filePath - OK');
       }
 
       // 処理開始
@@ -301,25 +347,33 @@ class AppStateNotifier extends StateNotifier<AppState> {
       // Pythonバックエンドとの連携処理
       final result = await _callPdfPythonBackend();
       
+      print('Pythonバックエンド結果: $result');
+      
       if (result['success']) {
         // 成功
-        final convertedCount = result['converted_count'] ?? 0;
+        final convertedCount = result['total_converted'] ?? result['converted_count'] ?? 0;
         setPdfConversionStatus(AppStatus.success, '$convertedCount個のファイルをPDFに変換しました！');
         
         // 出力フォルダを自動的に開く
         if (result['output_folder'] != null) {
           final outputFolder = result['output_folder'];
+          print('出力フォルダを開く: $outputFolder');
           final success = await FileService.openFolder(outputFolder);
           if (!success) {
-            print('Failed to open PDF output folder: $outputFolder');
+            print('出力フォルダを開けませんでした: $outputFolder');
           }
         }
       } else {
-        setPdfConversionError(result['error'] ?? 'PDF変換に失敗しました');
+        final errorMessage = result['error'] ?? 'PDF変換に失敗しました';
+        print('PDF変換エラー: $errorMessage');
+        setPdfConversionError(errorMessage);
       }
       
     } catch (e) {
+      print('PDF変換処理で例外が発生: $e');
       setPdfConversionError(e.toString());
+    } finally {
+      print('=== PDF変換処理完了 ===');
     }
   }
 
@@ -343,6 +397,10 @@ class AppStateNotifier extends StateNotifier<AppState> {
         final frontendDir = buildDir.parent;
         projectRoot = frontendDir.parent.path;
         print('Project root (from Release - Python): $projectRoot'); // デバッグログ
+      } else if (currentDir.contains('dist${path.separator}') || currentDir.endsWith('dist')) {
+        // distフォルダから実行される場合
+        projectRoot = currentDir;
+        print('Project root (from dist - Python): $projectRoot'); // デバッグログ
       } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
         projectRoot = Directory(currentDir).parent.path;
         print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
@@ -379,9 +437,9 @@ class AppStateNotifier extends StateNotifier<AppState> {
       }
       
       // ファイルパスをエスケープ（より安全な方法）
-      final csvPath = state.csvPath.replaceAll(path.separator, '/').replaceAll('"', '\\"');
-      final templatePath = state.templatePath.replaceAll(path.separator, '/').replaceAll('"', '\\"');
-      final outputPath = path.join(projectRoot, 'output').replaceAll(path.separator, '/').replaceAll('"', '\\"');
+      final csvPath = state.csvPath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
+      final templatePath = state.templatePath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
+      final outputPath = path.join(projectRoot, 'output').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final employeeName = state.employeeName.replaceAll('"', '\\"').replaceAll("'", "\\'");
       
       // デバッグログ
@@ -395,16 +453,23 @@ class AppStateNotifier extends StateNotifier<AppState> {
       
       // Pythonスクリプトの実行（プロジェクトルートから実行）
       final pythonCode = '''
+# -*- coding: utf-8 -*-
 import sys
 import os
+import locale
+
+# エンコーディング設定
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 print(f"Python version: {sys.version}")
 print(f"Current working directory: {os.getcwd()}")
 print(f"Project root: {r"$projectRoot"}")
 
-# ファイル存在チェック
-csv_path = r"$csvPath"
-template_path = r"$templatePath"
-output_path = r"$outputPath"
+# ファイル存在チェック（文字化け対策）
+csv_path = "$csvPath"
+template_path = "$templatePath"
+output_path = "$outputPath"
 
 print(f"CSV path: {csv_path}")
 print(f"CSV exists: {os.path.exists(csv_path)}")
@@ -469,7 +534,7 @@ try:
         csv_path,
         template_path,
         output_path,
-        r"$employeeName"
+        "$employeeName"
     )
     
     print(f"Processing result: {result}")
@@ -512,8 +577,8 @@ except Exception as e:
         await tempFile.writeAsString(pythonCode);
         print('Python script saved to: ${tempFile.path}');
         
-        // システムのPythonを使用
-        final pythonCommand = 'python';
+        // システムのPythonを使用（Windowsではpyコマンド）
+        final pythonCommand = Platform.isWindows ? 'py' : 'python';
         print('Using Python command: $pythonCommand');
         
         // Python実行時の環境変数を設定
@@ -522,6 +587,7 @@ except Exception as e:
           'PYTHONUTF8': '1',
           'PYTHONPATH': path.join(projectRoot, 'backend'),
           'PATH': '${Platform.environment['PATH']}',
+          'PYTHONLEGACYWINDOWSSTDIO': 'utf-8',
         };
         
         final result = await Process.run(pythonCommand, [
@@ -562,97 +628,214 @@ except Exception as e:
   // PDF変換用のPythonバックエンド呼び出し
   Future<Map<String, dynamic>> _callPdfPythonBackend() async {
     try {
-      // プロジェクトルートを取得
-      final currentDir = Directory.current.path;
-      String projectRoot;
+      print('=== _callPdfPythonBackend開始 ===');
       
-      // パス解決ロジックを修正
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-        final releaseDir = Directory(currentDir);
-        final runnerDir = releaseDir.parent;
-        final x64Dir = runnerDir.parent;
-        final windowsDir = x64Dir.parent;
-        final buildDir = windowsDir.parent;
-        final frontendDir = buildDir.parent;
-        projectRoot = frontendDir.parent.path;
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
-        projectRoot = Directory(currentDir).parent.path;
-      } else {
-        projectRoot = currentDir;
+      // プロジェクトルートを検出（Release/Debug/任意の場所からでもOK）
+      final projectRoot = await _resolveProjectRoot();
+      print('検出したプロジェクトルート: $projectRoot');
+      
+      // プロジェクトルートの存在確認
+      final projectRootDir = Directory(projectRoot);
+      if (!await projectRootDir.exists()) {
+        print('プロジェクトルートが存在しません: $projectRoot');
+        return {
+          'success': false,
+          'error': 'プロジェクトルートが見つかりません: $projectRoot',
+        };
+      }
+      
+      // バックエンドディレクトリの存在確認
+      final backendDir = Directory('$projectRoot/backend');
+      if (!await backendDir.exists()) {
+        print('バックエンドディレクトリが存在しません: $projectRoot/backend');
+        return {
+          'success': false,
+          'error': 'バックエンドディレクトリが見つかりません: $projectRoot/backend',
+        };
       }
       
       // 出力フォルダを作成
       final outputFolderResult = await _createPdfOutputFolder(projectRoot);
       if (!outputFolderResult['success']) {
+        print('出力フォルダ作成に失敗: ${outputFolderResult['error']}');
         return outputFolderResult;
       }
       
       final outputFolder = outputFolderResult['output_folder'];
+      print('出力フォルダ: $outputFolder');
+      
+      // パスを正規化してエスケープ
+      final normalizedProjectRoot = _escapePathForPython(projectRoot);
+      final normalizedOutputFolder = _escapePathForPython(outputFolder);
+      
+      // 選択されたファイルのパスを正規化
+      final normalizedFiles = <String>[];
+      for (final filePath in state.selectedExcelFiles) {
+        final file = File(filePath);
+        if (await file.exists()) {
+          normalizedFiles.add(_escapePathForPython(file.absolute.path));
+        } else {
+          print('ファイルが見つかりません: $filePath');
+          return {
+            'success': false,
+            'error': 'ファイルが見つかりません: $filePath',
+          };
+        }
+      }
+      
+      print('正規化されたファイルパス: $normalizedFiles');
       
       // PDF変換を実行（選択されたExcelファイルを変換）
       final pythonCode = '''
+# -*- coding: utf-8 -*-
 import sys
 import os
 import json
 
+# エンコーディング設定
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+print("=== PDF変換Pythonスクリプト開始 ===")
+print(f"Python version: {sys.version}")
+print(f"Current working directory: {os.getcwd()}")
+
+# プロジェクトルート
+project_root = "$normalizedProjectRoot"
+print(f"Project root: {project_root}")
+
 # バックエンドディレクトリをPythonパスに追加
-backend_path = os.path.join(r"$projectRoot", "backend")
+backend_path = os.path.join(project_root, "backend")
 sys.path.insert(0, backend_path)
+print(f"Added {backend_path} to sys.path")
 
 try:
     from main_processor import KintenProcessor
+    print("✅ KintenProcessor imported successfully")
     
     processor = KintenProcessor()
+    print("✅ KintenProcessor instance created")
     
-    excel_files = ${state.selectedExcelFiles}
-    output_folder = r"$outputFolder"
+    excel_files = ${normalizedFiles}
+    output_folder = "$normalizedOutputFolder"
+    
+    print(f"Excel files: {excel_files}")
+    print(f"Output folder: {output_folder}")
+    
+    # ファイル存在確認
+    for file_path in excel_files:
+        if not os.path.exists(file_path):
+            print(f"❌ File not found: {file_path}")
+            raise FileNotFoundError(f"File not found: {file_path}")
+        print(f"✅ File exists: {file_path}")
     
     # 選択されたExcelファイルをPDFに変換
+    print("Starting PDF conversion...")
     result = processor.convert_excel_to_pdf(excel_files, output_folder)
     
-    print(json.dumps(result, ensure_ascii=False))
+    print(f"PDF conversion result: {result}")
     
-except Exception as e:
+    # JSONとして出力
+    json_result = json.dumps(result, ensure_ascii=False, indent=2)
+    print("=== JSON結果 ===")
+    print(json_result)
+    print("=== JSON結果完了 ===")
+    
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    import traceback
+    traceback.print_exc()
     print(json.dumps({
         'success': False,
-        'error': str(e)
+        'error': f'Import error: {str(e)}'
     }, ensure_ascii=False))
+except Exception as e:
+    print(f"❌ Exception: {e}")
+    import traceback
+    traceback.print_exc()
+    print(json.dumps({
+        'success': False,
+        'error': f'Exception: {str(e)}'
+    }, ensure_ascii=False))
+
+print("=== PDF変換Pythonスクリプト完了 ===")
 ''';
+      
+      print('Pythonコード生成完了');
       
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/kinten_pdf_script_${DateTime.now().millisecondsSinceEpoch}.py');
       
       try {
         await tempFile.writeAsString(pythonCode);
+        print('Pythonスクリプトを保存: ${tempFile.path}');
         
-        final pythonCommand = 'python';
+        final pythonCommand = Platform.isWindows ? 'py' : 'python';
+        print('Pythonコマンド: $pythonCommand');
         
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
-          'PYTHONPATH': path.join(projectRoot, 'backend'),
+          'PYTHONPATH': '$normalizedProjectRoot/backend',
           'PATH': '${Platform.environment['PATH']}',
         };
+        
+        print('環境変数設定完了');
+        print('Pythonプロセス実行開始...');
         
         final result = await Process.run(pythonCommand, [
           tempFile.path,
         ], workingDirectory: projectRoot, environment: env);
         
+        print('=== Pythonプロセス実行結果 ===');
+        print('Exit code: ${result.exitCode}');
+        print('Stdout: ${result.stdout}');
+        print('Stderr: ${result.stderr}');
+        print('=== Pythonプロセス実行結果完了 ===');
+        
         await tempFile.delete();
         
         if (result.exitCode == 0) {
           final output = result.stdout.toString().trim();
-          final jsonResult = json.decode(output);
-          jsonResult['output_folder'] = outputFolder;
-          return jsonResult;
+          
+          // JSON結果を抽出
+          final jsonStart = output.indexOf('=== JSON結果 ===');
+          final jsonEnd = output.indexOf('=== JSON結果完了 ===');
+          
+          if (jsonStart != -1 && jsonEnd != -1) {
+            final jsonContent = output.substring(jsonStart + 15, jsonEnd).trim();
+            print('抽出されたJSON: $jsonContent');
+            
+            try {
+              final jsonResult = json.decode(jsonContent);
+              jsonResult['output_folder'] = outputFolder;
+              return jsonResult;
+            } catch (e) {
+              print('JSON解析エラー: $e');
+              return {
+                'success': false,
+                'error': 'JSON解析エラー: $e',
+                'raw_output': output,
+              };
+            }
+          } else {
+            print('JSON結果が見つかりません');
+            return {
+              'success': false,
+              'error': 'JSON結果が見つかりません',
+              'raw_output': output,
+            };
+          }
         } else {
+          final stderr = result.stderr.toString().trim();
+          print('Pythonプロセスエラー: $stderr');
           return {
             'success': false,
-            'error': result.stderr.toString().trim(),
+            'error': stderr.isNotEmpty ? stderr : 'Pythonプロセスが異常終了しました',
           };
         }
       } catch (e) {
+        print('Process.run エラー: $e');
         try {
           await tempFile.delete();
         } catch (_) {}
@@ -662,10 +845,13 @@ except Exception as e:
         };
       }
     } catch (e) {
+      print('_callPdfPythonBackend エラー: $e');
       return {
         'success': false,
         'error': e.toString(),
       };
+    } finally {
+      print('=== _callPdfPythonBackend完了 ===');
     }
   }
 
@@ -674,13 +860,21 @@ except Exception as e:
   // PDF出力フォルダ作成
   Future<Map<String, dynamic>> _createPdfOutputFolder(String projectRoot) async {
     try {
+      // パスを正規化してエスケープ
+      final normalizedProjectRoot = _escapePathForPython(projectRoot);
+      
       final pythonCode = '''
+# -*- coding: utf-8 -*-
 import sys
 import os
 import json
 
+# エンコーディング設定
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 # バックエンドディレクトリをPythonパスに追加
-backend_path = os.path.join(r"$projectRoot", "backend")
+backend_path = os.path.join("$normalizedProjectRoot", "backend")
 sys.path.insert(0, backend_path)
 
 try:
@@ -688,7 +882,7 @@ try:
     
     processor = KintenProcessor()
     
-    base_output_dir = r"$projectRoot/output"
+    base_output_dir = "$normalizedProjectRoot/output"
     
     result = processor.create_pdf_output_folder(base_output_dir)
     
@@ -707,12 +901,12 @@ except Exception as e:
       try {
         await tempFile.writeAsString(pythonCode);
         
-        final pythonCommand = 'python';
+        final pythonCommand = Platform.isWindows ? 'py' : 'python';
         
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
-          'PYTHONPATH': '${projectRoot}\\backend',
+          'PYTHONPATH': '$normalizedProjectRoot/backend',
         };
         
         final result = await Process.run(pythonCommand, [
