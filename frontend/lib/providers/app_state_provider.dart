@@ -81,35 +81,32 @@ class AppStateNotifier extends StateNotifier<AppState> {
     _loadSettings();
   }
 
-  // プロジェクトルートを堅牢に解決（親を遡ってbackendが見つかる場所）
-  Future<String> _resolveProjectRoot() async {
+  // Pythonコマンドを解決（Windowsでpyが無い場合のフォールバック含む）
+  Future<String> _resolvePythonCommand() async {
     try {
-      String current = Directory.current.path;
-      final seen = <String>{};
-
-      // WindowsのRelease/Debugやdist、frontend直下など全ケースに対応
-      Directory dir = Directory(current);
-      while (true) {
-        final dirPath = dir.path;
-        if (seen.contains(dirPath)) break; // 念のためループ防止
-        seen.add(dirPath);
-
-        final backendDir = Directory(path.join(dirPath, 'backend'));
-        if (await backendDir.exists()) {
-          return dirPath;
-        }
-
-        final parent = dir.parent;
-        if (parent.path == dir.path) {
-          // これ以上遡れない場合は現在のディレクトリを返す
-          return current;
-        }
-        dir = parent;
+      if (Platform.isWindows) {
+        try {
+          final r = await Process.run('py', ['--version']);
+          if (r.exitCode == 0) return 'py';
+        } catch (_) {}
+        try {
+          final r = await Process.run('python', ['--version']);
+          if (r.exitCode == 0) return 'python';
+        } catch (_) {}
+        try {
+          final r = await Process.run('python3', ['--version']);
+          if (r.exitCode == 0) return 'python3';
+        } catch (_) {}
+        return 'python';
+      } else {
+        try {
+          final r = await Process.run('python3', ['--version']);
+          if (r.exitCode == 0) return 'python3';
+        } catch (_) {}
+        return 'python';
       }
-      return current;
     } catch (_) {
-      // フォールバック
-      return Directory.current.path;
+      return Platform.isWindows ? 'python' : 'python3';
     }
   }
 
@@ -381,9 +378,29 @@ class AppStateNotifier extends StateNotifier<AppState> {
 
   Future<Map<String, dynamic>> _callPythonBackend() async {
     try {
-      // プロジェクトルートを堅牢に検出
-      final projectRoot = await _resolveProjectRoot();
-      print('Project root (resolved - Python): $projectRoot');
+      // プロジェクトルートを取得
+      final currentDir = Directory.current.path;
+      print('Current directory (Python backend): $currentDir'); // デバッグログ
+      
+      String projectRoot;
+      // Flutterアプリがビルドされて実行される場合のパス処理
+      if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
+        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
+        final releaseDir = Directory(currentDir);
+        final runnerDir = releaseDir.parent;
+        final x64Dir = runnerDir.parent;
+        final windowsDir = x64Dir.parent;
+        final buildDir = windowsDir.parent;
+        final frontendDir = buildDir.parent;
+        projectRoot = frontendDir.parent.path;
+        print('Project root (from Release - Python): $projectRoot'); // デバッグログ
+      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
+        projectRoot = Directory(currentDir).parent.path;
+        print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
+      } else {
+        projectRoot = currentDir;
+        print('Project root (current - Python): $projectRoot'); // デバッグログ
+      }
       
       // ファイル存在チェック
       final csvFile = File(state.csvPath);
@@ -554,7 +571,7 @@ except Exception as e:
         print('Python script saved to: ${tempFile.path}');
         
         // システムのPythonを使用（Windowsではpyコマンド）
-        final pythonCommand = Platform.isWindows ? 'py' : 'python';
+        final pythonCommand = await _resolvePythonCommand();
         print('Using Python command: $pythonCommand');
         
         // Python実行時の環境変数を設定
@@ -606,9 +623,30 @@ except Exception as e:
     try {
       print('=== _callPdfPythonBackend開始 ===');
       
-      // プロジェクトルートを検出（Release/Debug/任意の場所からでもOK）
-      final projectRoot = await _resolveProjectRoot();
-      print('検出したプロジェクトルート: $projectRoot');
+      // プロジェクトルートを取得
+      final currentDir = Directory.current.path;
+      print('現在のディレクトリ: $currentDir');
+      
+      String projectRoot;
+      
+      // パス解決ロジックを修正
+      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
+        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
+        final releaseDir = Directory(currentDir);
+        final runnerDir = releaseDir.parent;
+        final x64Dir = runnerDir.parent;
+        final windowsDir = x64Dir.parent;
+        final buildDir = windowsDir.parent;
+        final frontendDir = buildDir.parent;
+        projectRoot = frontendDir.parent.path;
+        print('Release環境からプロジェクトルートを解決: $projectRoot');
+      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
+        projectRoot = Directory(currentDir).parent.path;
+        print('frontendディレクトリからプロジェクトルートを解決: $projectRoot');
+      } else {
+        projectRoot = currentDir;
+        print('現在のディレクトリをプロジェクトルートとして使用: $projectRoot');
+      }
       
       // プロジェクトルートの存在確認
       final projectRootDir = Directory(projectRoot);
@@ -660,7 +698,9 @@ except Exception as e:
       }
       
       print('正規化されたファイルパス: $normalizedFiles');
-      
+      // Pythonに安全に渡すためJSONエンコード
+      final filesJson = json.encode(normalizedFiles);
+
       // PDF変換を実行（選択されたExcelファイルを変換）
       final pythonCode = '''
 # -*- coding: utf-8 -*-
@@ -692,7 +732,8 @@ try:
     processor = KintenProcessor()
     print("✅ KintenProcessor instance created")
     
-    excel_files = ${normalizedFiles}
+    excel_files_json = r'''$filesJson'''
+    excel_files = json.loads(excel_files_json)
     output_folder = "$normalizedOutputFolder"
     
     print(f"Excel files: {excel_files}")
@@ -746,7 +787,7 @@ print("=== PDF変換Pythonスクリプト完了 ===")
         await tempFile.writeAsString(pythonCode);
         print('Pythonスクリプトを保存: ${tempFile.path}');
         
-        final pythonCommand = Platform.isWindows ? 'py' : 'python';
+        final pythonCommand = await _resolvePythonCommand();
         print('Pythonコマンド: $pythonCommand');
         
         final env = <String, String>{
@@ -877,7 +918,7 @@ except Exception as e:
       try {
         await tempFile.writeAsString(pythonCode);
         
-        final pythonCommand = Platform.isWindows ? 'py' : 'python';
+        final pythonCommand = await _resolvePythonCommand();
         
         final env = <String, String>{
           'PYTHONIOENCODING': 'utf-8',
