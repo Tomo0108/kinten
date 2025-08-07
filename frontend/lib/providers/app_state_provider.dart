@@ -381,33 +381,9 @@ class AppStateNotifier extends StateNotifier<AppState> {
 
   Future<Map<String, dynamic>> _callPythonBackend() async {
     try {
-      // プロジェクトルートを取得
-      final currentDir = Directory.current.path;
-      print('Current directory (Python backend): $currentDir'); // デバッグログ
-      
-      String projectRoot;
-      // Flutterアプリがビルドされて実行される場合のパス処理
-      if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-        final releaseDir = Directory(currentDir);
-        final runnerDir = releaseDir.parent;
-        final x64Dir = runnerDir.parent;
-        final windowsDir = x64Dir.parent;
-        final buildDir = windowsDir.parent;
-        final frontendDir = buildDir.parent;
-        projectRoot = frontendDir.parent.path;
-        print('Project root (from Release - Python): $projectRoot'); // デバッグログ
-      } else if (currentDir.contains('dist${path.separator}') || currentDir.endsWith('dist')) {
-        // distフォルダから実行される場合
-        projectRoot = currentDir;
-        print('Project root (from dist - Python): $projectRoot'); // デバッグログ
-      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
-        projectRoot = Directory(currentDir).parent.path;
-        print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
-      } else {
-        projectRoot = currentDir;
-        print('Project root (current - Python): $projectRoot'); // デバッグログ
-      }
+      // プロジェクトルートを堅牢に検出
+      final projectRoot = await _resolveProjectRoot();
+      print('Project root (resolved - Python): $projectRoot');
       
       // ファイル存在チェック
       final csvFile = File(state.csvPath);
