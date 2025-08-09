@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 CSV処理機能
 freee勤怠CSVを読み込み、整形する

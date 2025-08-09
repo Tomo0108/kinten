@@ -5,7 +5,11 @@ a = Analysis(
     ['backend\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('templates', 'templates'),
+        ('input', 'input'),
+        ('output', 'output'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

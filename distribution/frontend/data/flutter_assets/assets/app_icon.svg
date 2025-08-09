@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3498db;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2980b9;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="clock" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ecf0f1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景円 -->
+  <circle cx="256" cy="256" r="240" fill="url(#bg)" stroke="#2c3e50" stroke-width="8"/>
+  
+  <!-- 時計の外枠 -->
+  <circle cx="256" cy="256" r="120" fill="url(#clock)" stroke="#34495e" stroke-width="4"/>
+  
+  <!-- 時計の中心点 -->
+  <circle cx="256" cy="256" r="8" fill="#2c3e50"/>
+  
+  <!-- 時計の針 -->
+  <!-- 時針 -->
+  <line x1="256" y1="256" x2="256" y2="180" stroke="#2c3e50" stroke-width="6" stroke-linecap="round"/>
+  <!-- 分針 -->
+  <line x1="256" y1="256" x2="320" y2="256" stroke="#2c3e50" stroke-width="4" stroke-linecap="round"/>
+  <!-- 秒針 -->
+  <line x1="256" y1="256" x2="256" y2="140" stroke="#e74c3c" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- 時計の目盛り -->
+  <g stroke="#34495e" stroke-width="3">
+    <!-- 12時 -->
+    <line x1="256" y1="146" x2="256" y2="166"/>
+    <!-- 3時 -->
+    <line x1="346" y1="256" x2="326" y2="256"/>
+    <!-- 6時 -->
+    <line x1="256" y1="346" x2="256" y2="326"/>
+    <!-- 9時 -->
+    <line x1="166" y1="256" x2="146" y2="256"/>
+  </g>
+  
+  <!-- カレンダー要素 -->
+  <rect x="320" y="120" width="80" height="60" rx="8" fill="#ffffff" stroke="#34495e" stroke-width="2"/>
+  <rect x="320" y="120" width="80" height="20" rx="8" fill="#e74c3c"/>
+  <text x="360" y="135" text-anchor="middle" fill="#ffffff" font-family="Arial" font-size="12" font-weight="bold">15</text>
+  
+  <!-- アプリ名 -->
+  <text x="256" y="420" text-anchor="middle" fill="#ffffff" font-family="Arial" font-size="24" font-weight="bold">Kinten</text>
+</svg> 

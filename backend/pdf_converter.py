@@ -423,14 +423,14 @@ class PDFConverter:
                     # ブックを開く（読み取り専用）
                     wb = excel_app.Workbooks.Open(excel_file, ReadOnly=True)
                     try:
-                        # ブック単位でPDFへ（全シート対象）
+                        # ブック単位でPDFへ（全シート対象・印刷設定を尊重）
                         # Type=0 (xlTypePDF)
                         wb.ExportAsFixedFormat(
                             0,
                             pdf_path,
                             Quality=0,  # xlQualityStandard
                             IncludeDocProperties=True,
-                            IgnorePrintAreas=False,
+                            IgnorePrintAreas=False,  # 既存の印刷範囲/ページ設定を尊重
                             OpenAfterPublish=False
                         )
                     finally:
@@ -591,56 +591,24 @@ class PDFConverter:
             failed_files = []
             validation_errors = []
             
-            # Windows + pywin32 が使えるなら Excel のネイティブ出力を優先
-            if self.platform == 'Windows' and self._check_dependencies().get('pywin32', False):
+            # Windowsでは必ずExcelネイティブ（COM）で全シートをそのままPDF出力
+            if self.platform == 'Windows':
+                if not self._check_dependencies().get('pywin32', False):
+                    return {
+                        'success': False,
+                        'error': 'Windows環境での変換には pywin32 が必要です（Excelネイティブ出力）。',
+                        'error_type': 'missing_pywin32'
+                    }
                 conv, fail = self._excel_to_pdf_win32(excel_files, output_folder)
                 converted_files.extend(conv)
                 failed_files.extend(fail)
             else:
-                # フォールバック: reportlabで簡易出力
-                for excel_file in excel_files:
-                    try:
-                        # ファイルの妥当性を検証
-                        is_valid, validation_message = self._validate_excel_file(excel_file)
-                        if not is_valid:
-                            validation_errors.append({
-                                'file': excel_file,
-                                'error': validation_message
-                            })
-                            continue
-
-                        # ファイル名からPDF名を生成
-                        base_name = os.path.splitext(os.path.basename(excel_file))[0]
-                        pdf_name = f"{base_name}.pdf"
-                        pdf_path = os.path.join(output_folder, pdf_name)
-
-                        # 既存ファイルの確認
-                        if os.path.exists(pdf_path):
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            pdf_name = f"{base_name}_{timestamp}.pdf"
-                            pdf_path = os.path.join(output_folder, pdf_name)
-
-                        # PDFに変換
-                        success, message = self._excel_to_pdf_openpyxl(excel_file, pdf_path)
-
-                        if success and os.path.exists(pdf_path):
-                            converted_files.append({
-                                'excel_file': excel_file,
-                                'pdf_file': pdf_path,
-                                'pdf_name': pdf_name,
-                                'message': message
-                            })
-                        else:
-                            failed_files.append({
-                                'file': excel_file,
-                                'error': message or 'PDF変換に失敗しました'
-                            })
-
-                    except Exception as e:
-                        failed_files.append({
-                            'file': excel_file,
-                            'error': f'予期しないエラー: {str(e)}'
-                        })
+                # 非Windowsでは「そのまま」出力は未サポート（報告のみ）
+                return {
+                    'success': False,
+                    'error': 'この環境ではExcelをそのままPDF出力できません（Windows + Excel が必要）',
+                    'error_type': 'unsupported_platform_for_exact_export'
+                }
             
             # 結果の整理
             result = {

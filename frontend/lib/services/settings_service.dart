@@ -8,6 +8,16 @@ class SettingsService {
   static const String _outputPathKey = 'output_path';
   static const String _employeeNameKey = 'employee_name';
   
+  // SharedPreferencesの安全な初期化
+  static Future<SharedPreferences?> _getPreferences() async {
+    try {
+      return await SharedPreferences.getInstance();
+    } catch (e) {
+      print('SharedPreferences初期化エラー: $e');
+      return null;
+    }
+  }
+  
   // デフォルトテンプレートパスを動的に解決
   static Future<String> get _defaultTemplatePath async {
     // プロジェクトルートを取得
@@ -36,48 +46,114 @@ class SettingsService {
 
   // テンプレートパスを取得（デフォルト値または保存された値）
   static Future<String> getTemplatePath() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedPath = prefs.getString(_templatePathKey);
-    if (savedPath != null && savedPath.isNotEmpty) {
-      return savedPath;
+    try {
+      final prefs = await _getPreferences();
+      if (prefs == null) {
+        return await _defaultTemplatePath;
+      }
+      
+      final savedPath = prefs.getString(_templatePathKey);
+      if (savedPath != null && savedPath.isNotEmpty) {
+        return savedPath;
+      }
+      return await _defaultTemplatePath;
+    } catch (e) {
+      print('テンプレートパス取得エラー: $e');
+      return await _defaultTemplatePath;
     }
-    return await _defaultTemplatePath;
   }
 
   // テンプレートパスを保存
   static Future<void> setTemplatePath(String path) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_templatePathKey, path);
+    try {
+      final prefs = await _getPreferences();
+      if (prefs != null) {
+        await prefs.setString(_templatePathKey, path);
+      }
+    } catch (e) {
+      print('テンプレートパス保存エラー: $e');
+    }
   }
 
   // 出力先パスを取得
   static Future<String> getOutputPath() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_outputPathKey) ?? '';
+    try {
+      final prefs = await _getPreferences();
+      if (prefs == null) {
+        return '';
+      }
+      return prefs.getString(_outputPathKey) ?? '';
+    } catch (e) {
+      print('出力先パス取得エラー: $e');
+      return '';
+    }
   }
 
   // 出力先パスを保存
   static Future<void> setOutputPath(String path) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_outputPathKey, path);
+    try {
+      final prefs = await _getPreferences();
+      if (prefs != null) {
+        await prefs.setString(_outputPathKey, path);
+      }
+    } catch (e) {
+      print('出力先パス保存エラー: $e');
+    }
   }
 
   // 従業員名を取得
   static Future<String> getEmployeeName() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_employeeNameKey) ?? '';
+    try {
+      final prefs = await _getPreferences();
+      if (prefs == null) {
+        return '';
+      }
+      return prefs.getString(_employeeNameKey) ?? '';
+    } catch (e) {
+      print('従業員名取得エラー: $e');
+      return '';
+    }
   }
 
   // 従業員名を保存
   static Future<void> setEmployeeName(String name) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_employeeNameKey, name);
+    try {
+      final prefs = await _getPreferences();
+      if (prefs != null) {
+        await prefs.setString(_employeeNameKey, name);
+      }
+    } catch (e) {
+      print('従業員名保存エラー: $e');
+    }
   }
 
   // デフォルトの出力先ディレクトリを取得
   static Future<String> getDefaultOutputDirectory() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return path.join(directory.path, 'Kinten_Output');
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      return path.join(directory.path, 'Kinten_Output');
+    } catch (e) {
+      print('デフォルト出力ディレクトリ取得エラー: $e');
+      // フォールバック: プロジェクトルートのoutputディレクトリ
+      final currentDir = Directory.current.path;
+      String projectRoot;
+      
+      if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
+        final releaseDir = Directory(currentDir);
+        final runnerDir = releaseDir.parent;
+        final x64Dir = runnerDir.parent;
+        final windowsDir = x64Dir.parent;
+        final buildDir = windowsDir.parent;
+        final frontendDir = buildDir.parent;
+        projectRoot = frontendDir.parent.path;
+      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
+        projectRoot = Directory(currentDir).parent.path;
+      } else {
+        projectRoot = currentDir;
+      }
+      
+      return path.join(projectRoot, 'output');
+    }
   }
 
   // デフォルトテンプレートファイルが存在するかチェック
@@ -87,15 +163,22 @@ class SettingsService {
       final file = File(templatePath);
       return await file.exists();
     } catch (e) {
+      print('テンプレートファイル存在チェックエラー: $e');
       return false;
     }
   }
 
   // 設定をリセット
   static Future<void> resetSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_templatePathKey);
-    await prefs.remove(_outputPathKey);
-    await prefs.remove(_employeeNameKey);
+    try {
+      final prefs = await _getPreferences();
+      if (prefs != null) {
+        await prefs.remove(_templatePathKey);
+        await prefs.remove(_outputPathKey);
+        await prefs.remove(_employeeNameKey);
+      }
+    } catch (e) {
+      print('設定リセットエラー: $e');
+    }
   }
 } 

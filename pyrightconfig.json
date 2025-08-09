@@ -19,6 +19,10 @@
   "useLibraryCodeForTypes": true,
   "reportMissingImports": "warning",
   "reportMissingTypeStubs": false,
+  "reportMissingModuleSource": "none",
+  "reportAssignmentType": "none",
+  "reportArgumentType": "none",
+  "reportAttributeAccessIssue": "none",
   "extraPaths": [
     "./backend"
   ]

@@ -24,6 +24,7 @@ class NeumorphicButton extends StatefulWidget {
 
 class _NeumorphicButtonState extends State<NeumorphicButton> {
   bool _isHovered = false;
+  bool _isPressed = false;
 
 
 
@@ -38,6 +39,9 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTapUp: (_) => setState(() => _isPressed = false),
         onTap: widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -46,7 +50,15 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
           decoration: BoxDecoration(
             color: buttonColor,
             borderRadius: BorderRadius.circular(widget.borderRadius),
-            boxShadow: _isHovered
+            boxShadow: _isPressed
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : _isHovered
                 ? [
                     // ホバー時の軽微な影
                     BoxShadow(
@@ -64,6 +76,10 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
                     ),
                   ],
           ),
+          transform: _isPressed
+              ? (Matrix4.identity()..scale(0.98))
+              : (Matrix4.identity()..scale(_isHovered ? 1.02 : 1.0)),
+          transformAlignment: Alignment.center,
           child: Center(
             child: Opacity(
               opacity: isEnabled ? 1.0 : 0.5,
