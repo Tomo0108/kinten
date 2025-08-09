@@ -702,80 +702,43 @@ except Exception as e:
       final filesJson = json.encode(normalizedFiles);
 
       // PDF変換を実行（選択されたExcelファイルを変換）
+      // 標準出力はJSONのみを出力し、ログは標準エラーへ出す簡素なスクリプトに変更
       final pythonCode = """
 # -*- coding: utf-8 -*-
 import sys
 import os
 import json
 
-# エンコーディング設定
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-print("=== PDF変換Pythonスクリプト開始 ===")
-print(f"Python version: {sys.version}")
-print(f"Current working directory: {os.getcwd()}")
-
-# プロジェクトルート
 project_root = "$normalizedProjectRoot"
-print(f"Project root: {project_root}")
-
-# バックエンドディレクトリをPythonパスに追加
 backend_path = os.path.join(project_root, "backend")
 sys.path.insert(0, backend_path)
-print(f"Added {backend_path} to sys.path")
 
 try:
     from main_processor import KintenProcessor
-    print("✅ KintenProcessor imported successfully")
-    
     processor = KintenProcessor()
-    print("✅ KintenProcessor instance created")
-    
+
     excel_files_json = r'''$filesJson'''
     excel_files = json.loads(excel_files_json)
     output_folder = "$normalizedOutputFolder"
-    
-    print(f"Excel files: {excel_files}")
-    print(f"Output folder: {output_folder}")
-    
-    # ファイル存在確認
+
+    # 存在確認（ログはstderr）
     for file_path in excel_files:
         if not os.path.exists(file_path):
-            print(f"❌ File not found: {file_path}")
             raise FileNotFoundError(f"File not found: {file_path}")
-        print(f"✅ File exists: {file_path}")
-    
-    # 選択されたExcelファイルをPDFに変換
-    print("Starting PDF conversion...")
-    result = processor.convert_excel_to_pdf(excel_files, output_folder)
-    
-    print(f"PDF conversion result: {result}")
-    
-    # JSONとして出力
-    json_result = json.dumps(result, ensure_ascii=False, indent=2)
-    print("=== JSON結果 ===")
-    print(json_result)
-    print("=== JSON結果完了 ===")
-    
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    import traceback
-    traceback.print_exc()
-    print(json.dumps({
-        'success': False,
-        'error': f'Import error: {str(e)}'
-    }, ensure_ascii=False))
-except Exception as e:
-    print(f"❌ Exception: {e}")
-    import traceback
-    traceback.print_exc()
-    print(json.dumps({
-        'success': False,
-        'error': f'Exception: {str(e)}'
-    }, ensure_ascii=False))
 
-print("=== PDF変換Pythonスクリプト完了 ===")
+    result = processor.convert_excel_to_pdf(excel_files, output_folder)
+
+    # 成功・失敗に関わらず標準出力はJSONのみ
+    print(json.dumps(result, ensure_ascii=False))
+    sys.exit(0 if result.get('success') else 1)
+
+except Exception as e:
+    # 例外時もJSONで返す
+    print(json.dumps({'success': False, 'error': str(e)}, ensure_ascii=False))
+    sys.exit(1)
 """;
       
       print('Pythonコード生成完了');
@@ -814,32 +777,26 @@ print("=== PDF変換Pythonスクリプト完了 ===")
         
         if (result.exitCode == 0) {
           final output = result.stdout.toString().trim();
-          
-          // JSON結果を抽出
-          final jsonStart = output.indexOf('=== JSON結果 ===');
-          final jsonEnd = output.indexOf('=== JSON結果完了 ===');
-          
-          if (jsonStart != -1 && jsonEnd != -1) {
-            final jsonContent = output.substring(jsonStart + 15, jsonEnd).trim();
-            print('抽出されたJSON: $jsonContent');
-            
-            try {
-              final jsonResult = json.decode(jsonContent);
-              jsonResult['output_folder'] = outputFolder;
-              return jsonResult;
-            } catch (e) {
-              print('JSON解析エラー: $e');
-              return {
-                'success': false,
-                'error': 'JSON解析エラー: $e',
-                'raw_output': output,
-              };
+          try {
+            final jsonResult = json.decode(output);
+            jsonResult['output_folder'] = outputFolder;
+            return jsonResult;
+          } catch (e) {
+            // フォールバック：最初の '{' から最後の '}' を抽出
+            final o = output;
+            final start = o.indexOf('{');
+            final end = o.lastIndexOf('}');
+            if (start != -1 && end != -1 && end > start) {
+              final content = o.substring(start, end + 1);
+              try {
+                final jsonResult = json.decode(content);
+                jsonResult['output_folder'] = outputFolder;
+                return jsonResult;
+              } catch (_) {}
             }
-          } else {
-            print('JSON結果が見つかりません');
             return {
               'success': false,
-              'error': 'JSON結果が見つかりません',
+              'error': 'JSON解析に失敗しました',
               'raw_output': output,
             };
           }
