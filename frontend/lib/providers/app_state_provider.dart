@@ -116,6 +116,66 @@ class AppStateNotifier extends StateNotifier<AppState> {
     return path.replaceAll('\\', '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
   }
 
+  // バックエンドexeのパスを解決（実行ディレクトリ優先 → dist 配下 → プロジェクトルート直下）
+  String? _resolveBackendExePath(String projectRoot) {
+    final cwdExe = path.join(Directory.current.path, 'kinten_backend.exe');
+    if (File(cwdExe).existsSync()) return cwdExe;
+    final distExe = path.join(projectRoot, 'dist', 'kinten_backend.exe');
+    if (File(distExe).existsSync()) return distExe;
+    final rootExe = path.join(projectRoot, 'kinten_backend.exe');
+    if (File(rootExe).existsSync()) return rootExe;
+    return null;
+  }
+
+  // バックエンドexeをJSONで呼び出す
+  Future<Map<String, dynamic>> _callBackendExe(
+    String exePath,
+    Map<String, dynamic> payload, {
+    String? workingDirectory,
+  }) async {
+    final process = await Process.start(
+      exePath,
+      const <String>[],
+      workingDirectory: workingDirectory,
+      runInShell: false,
+      environment: <String, String>{
+        'PYTHONIOENCODING': 'utf-8',
+        'PYTHONUTF8': '1',
+      },
+    );
+
+    // 入力（JSON）を送信
+    process.stdin.writeln(json.encode(payload));
+    await process.stdin.close();
+
+    final stdoutStr = await process.stdout.transform(utf8.decoder).join();
+    final stderrStr = await process.stderr.transform(utf8.decoder).join();
+    final exitCode = await process.exitCode;
+
+    // できる限りstdoutをJSONとして解釈（exit codeに関わらず）
+    try {
+      final decoded = json.decode(stdoutStr);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {
+      // フォールバックで波括弧抽出
+      final s = stdoutStr;
+      final start = s.indexOf('{');
+      final end = s.lastIndexOf('}');
+      if (start != -1 && end != -1 && end > start) {
+        try {
+          final decoded = json.decode(s.substring(start, end + 1));
+          if (decoded is Map<String, dynamic>) return decoded;
+        } catch (_) {}
+      }
+    }
+
+    return <String, dynamic>{
+      'success': false,
+      'error': stderrStr.isNotEmpty ? stderrStr : 'バックエンドが異常終了しました',
+      'stdout': stdoutStr,
+    };
+  }
+
   // 設定を読み込み
   Future<void> _loadSettings() async {
     try {
@@ -668,8 +728,17 @@ except Exception as e:
         };
       }
       
-      // 出力フォルダを作成
-      final outputFolderResult = await _createPdfOutputFolder(projectRoot);
+      // 出力フォルダを作成（exeがあればexe経由で作成）
+      final exePath = _resolveBackendExePath(projectRoot);
+      Map<String, dynamic> outputFolderResult;
+      if (exePath != null) {
+        outputFolderResult = await _callBackendExe(exePath, {
+          'process_type': 'create_pdf_output_folder',
+          'base_output_dir': path.join(projectRoot, 'output').replaceAll('\\', '/'),
+        }, workingDirectory: projectRoot);
+      } else {
+        outputFolderResult = await _createPdfOutputFolder(projectRoot);
+      }
       if (!outputFolderResult['success']) {
         print('出力フォルダ作成に失敗: ${outputFolderResult['error']}');
         return outputFolderResult;
@@ -701,8 +770,21 @@ except Exception as e:
       // Pythonに安全に渡すためJSONエンコード
       final filesJson = json.encode(normalizedFiles);
 
-      // PDF変換を実行（選択されたExcelファイルを変換）
-      // 標準出力はJSONのみを出力し、ログは標準エラーへ出す簡素なスクリプトに変更
+      // バックエンドexeがある場合はexeを直接呼び出し
+      if (exePath != null) {
+        final result = await _callBackendExe(exePath, {
+          'process_type': 'convert_to_pdf',
+          'excel_files': normalizedFiles,
+          'output_folder': outputFolder,
+        }, workingDirectory: projectRoot);
+        if (result['success'] == true) {
+          result['output_folder'] = outputFolder;
+        }
+        return result;
+      }
+
+      // PDF変換を実行（選択されたExcelファイルを変換）: Pythonフォールバック
+      // 標準出力はJSONのみを出力
       final pythonCode = """
 # -*- coding: utf-8 -*-
 import sys
@@ -758,6 +840,7 @@ except Exception as e:
           'PYTHONUTF8': '1',
           'PYTHONPATH': '$normalizedProjectRoot/backend',
           'PATH': '${Platform.environment['PATH']}',
+          'PYTHONLEGACYWINDOWSSTDIO': 'utf-8',
         };
         
         print('環境変数設定完了');
