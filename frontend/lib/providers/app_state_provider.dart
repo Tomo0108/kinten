@@ -702,7 +702,7 @@ except Exception as e:
       final filesJson = json.encode(normalizedFiles);
 
       // PDF変換を実行（選択されたExcelファイルを変換）
-      final pythonCode = '''
+      final pythonCode = """
 # -*- coding: utf-8 -*-
 import sys
 import os
@@ -776,7 +776,7 @@ except Exception as e:
     }, ensure_ascii=False))
 
 print("=== PDF変換Pythonスクリプト完了 ===")
-''';
+""";
       
       print('Pythonコード生成完了');
       
