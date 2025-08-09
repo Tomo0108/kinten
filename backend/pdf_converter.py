@@ -68,6 +68,14 @@ class PDFConverter:
             'reportlab': REPORTLAB_AVAILABLE,
             'platform': True
         }
+        # WindowsでExcelネイティブ出力を使う場合に必要
+        if self.platform == 'Windows':
+            try:
+                import win32com.client  # type: ignore
+                import pythoncom  # type: ignore
+                deps['pywin32'] = True
+            except Exception:
+                deps['pywin32'] = False
         return deps
     
     def get_system_info(self) -> Dict[str, Any]:
@@ -305,7 +313,7 @@ class PDFConverter:
             
             story = []
             styles = getSampleStyleSheet()
-            # 日本語対応の段落スタイルを用意（エラーメッセージや通常文でも日本語フォントを使用）
+            # 日本語対応（段落ヘッダーは作らず、シンプルに表のみ出力）
             normal_jp = ParagraphStyle(
                 'NormalJP',
                 parent=styles['Normal'],
@@ -313,29 +321,13 @@ class PDFConverter:
                 fontSize=9
             )
             
-            # タイトルスタイル
-            title_style = ParagraphStyle(
-                'CustomTitle',
-                parent=styles['Heading1'],
-                fontName=JAPANESE_FONT,
-                fontSize=16,
-                spaceAfter=12
-            )
-            
-            # ファイル名をタイトルとして追加
-            file_title = os.path.splitext(os.path.basename(excel_file))[0]
-            story.append(Paragraph(f"Excel File: {file_title}", title_style))
-            story.append(Spacer(1, 12))
+            # FMT（独自見出し）は出力しない
             
             # 各シートを処理
             processed_sheets = 0
             for sheet_name in workbook.sheetnames:
                 try:
                     sheet = workbook[sheet_name]
-                    
-                    # シート名をタイトルとして追加
-                    story.append(Paragraph(f"シート: {sheet_name}", title_style))
-                    story.append(Spacer(1, 12))
                     
                     # シートのデータを取得
                     data = self._get_sheet_data(sheet)
@@ -359,13 +351,12 @@ class PDFConverter:
                         story.append(table)
                         processed_sheets += 1
                     else:
-                        story.append(Paragraph("データが見つかりません", normal_jp))
+                        story.append(Paragraph("", normal_jp))
                     
                     story.append(PageBreak())
                     
                 except Exception as e:
-                    error_msg = f"シート '{sheet_name}' の処理エラー: {str(e)}"
-                    story.append(Paragraph(error_msg, normal_jp))
+                    # ログのみ。PDFには余計な文言は出さない
                     story.append(PageBreak())
                     continue
             
@@ -388,6 +379,101 @@ class PDFConverter:
             
         except Exception as e:
             return False, f"PDF変換エラー: {str(e)}"
+
+    def _excel_to_pdf_win32(self, excel_files: List[str], output_folder: str) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+        """
+        Windows + Excel(COM)でワークブック内の全シートをPDF化（高速・レイアウト忠実）
+
+        Args:
+            excel_files: 変換するExcelファイルパス一覧
+            output_folder: 出力フォルダ
+
+        Returns:
+            (converted_files, failed_files) のタプル
+        """
+        converted_files: List[Dict[str, str]] = []
+        failed_files: List[Dict[str, str]] = []
+        try:
+            import pythoncom  # type: ignore
+            import win32com.client  # type: ignore
+        except Exception as e:
+            return [], [{
+                'file': '(batch)',
+                'error': f'pywin32がインストールされていません: {str(e)}'
+            }]
+
+        excel_app = None
+        try:
+            pythoncom.CoInitialize()
+            excel_app = win32com.client.Dispatch("Excel.Application")
+            excel_app.Visible = False
+            excel_app.ScreenUpdating = False
+            excel_app.DisplayAlerts = False
+
+            for excel_file in excel_files:
+                try:
+                    # PDF出力先パスを作成
+                    base_name = os.path.splitext(os.path.basename(excel_file))[0]
+                    pdf_name = f"{base_name}.pdf"
+                    pdf_path = os.path.join(output_folder, pdf_name)
+                    if os.path.exists(pdf_path):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        pdf_path = os.path.join(output_folder, f"{base_name}_{timestamp}.pdf")
+
+                    # ブックを開く（読み取り専用）
+                    wb = excel_app.Workbooks.Open(excel_file, ReadOnly=True)
+                    try:
+                        # ブック単位でPDFへ（全シート対象）
+                        # Type=0 (xlTypePDF)
+                        wb.ExportAsFixedFormat(
+                            0,
+                            pdf_path,
+                            Quality=0,  # xlQualityStandard
+                            IncludeDocProperties=True,
+                            IgnorePrintAreas=False,
+                            OpenAfterPublish=False
+                        )
+                    finally:
+                        wb.Close(SaveChanges=False)
+
+                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                        converted_files.append({
+                            'excel_file': excel_file,
+                            'pdf_file': pdf_path,
+                            'pdf_name': os.path.basename(pdf_path),
+                            'message': 'Excelの全シートをPDFとして保存'
+                        })
+                    else:
+                        failed_files.append({
+                            'file': excel_file,
+                            'error': 'PDFファイルが作成されませんでした'
+                        })
+                except Exception as e:
+                    failed_files.append({
+                        'file': excel_file,
+                        'error': f'Excel出力エラー: {str(e)}'
+                    })
+
+        except Exception as e:
+            failed_files.append({
+                'file': '(batch)',
+                'error': f'Excelアプリ起動エラー: {str(e)}'
+            })
+        finally:
+            try:
+                if excel_app is not None:
+                    excel_app.DisplayAlerts = True
+                    excel_app.ScreenUpdating = True
+                    excel_app.Quit()
+            except Exception:
+                pass
+            try:
+                import pythoncom  # type: ignore
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
+
+        return converted_files, failed_files
     
     def _get_sheet_data(self, sheet: Any, max_rows: int = 100, max_cols: int = 20) -> List[List[str]]:
         """
@@ -505,50 +591,56 @@ class PDFConverter:
             failed_files = []
             validation_errors = []
             
-            for excel_file in excel_files:
-                try:
-                    # ファイルの妥当性を検証
-                    is_valid, validation_message = self._validate_excel_file(excel_file)
-                    if not is_valid:
-                        validation_errors.append({
-                            'file': excel_file,
-                            'error': validation_message
-                        })
-                        continue
-                    
-                    # ファイル名からPDF名を生成
-                    base_name = os.path.splitext(os.path.basename(excel_file))[0]
-                    pdf_name = f"{base_name}.pdf"
-                    pdf_path = os.path.join(output_folder, pdf_name)
-                    
-                    # 既存ファイルの確認
-                    if os.path.exists(pdf_path):
-                        # タイムスタンプを追加
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        pdf_name = f"{base_name}_{timestamp}.pdf"
+            # Windows + pywin32 が使えるなら Excel のネイティブ出力を優先
+            if self.platform == 'Windows' and self._check_dependencies().get('pywin32', False):
+                conv, fail = self._excel_to_pdf_win32(excel_files, output_folder)
+                converted_files.extend(conv)
+                failed_files.extend(fail)
+            else:
+                # フォールバック: reportlabで簡易出力
+                for excel_file in excel_files:
+                    try:
+                        # ファイルの妥当性を検証
+                        is_valid, validation_message = self._validate_excel_file(excel_file)
+                        if not is_valid:
+                            validation_errors.append({
+                                'file': excel_file,
+                                'error': validation_message
+                            })
+                            continue
+
+                        # ファイル名からPDF名を生成
+                        base_name = os.path.splitext(os.path.basename(excel_file))[0]
+                        pdf_name = f"{base_name}.pdf"
                         pdf_path = os.path.join(output_folder, pdf_name)
-                    
-                    # PDFに変換
-                    success, message = self._excel_to_pdf_openpyxl(excel_file, pdf_path)
-                    
-                    if success and os.path.exists(pdf_path):
-                        converted_files.append({
-                            'excel_file': excel_file,
-                            'pdf_file': pdf_path,
-                            'pdf_name': pdf_name,
-                            'message': message
-                        })
-                    else:
+
+                        # 既存ファイルの確認
+                        if os.path.exists(pdf_path):
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            pdf_name = f"{base_name}_{timestamp}.pdf"
+                            pdf_path = os.path.join(output_folder, pdf_name)
+
+                        # PDFに変換
+                        success, message = self._excel_to_pdf_openpyxl(excel_file, pdf_path)
+
+                        if success and os.path.exists(pdf_path):
+                            converted_files.append({
+                                'excel_file': excel_file,
+                                'pdf_file': pdf_path,
+                                'pdf_name': pdf_name,
+                                'message': message
+                            })
+                        else:
+                            failed_files.append({
+                                'file': excel_file,
+                                'error': message or 'PDF変換に失敗しました'
+                            })
+
+                    except Exception as e:
                         failed_files.append({
                             'file': excel_file,
-                            'error': message or 'PDF変換に失敗しました'
+                            'error': f'予期しないエラー: {str(e)}'
                         })
-                    
-                except Exception as e:
-                    failed_files.append({
-                        'file': excel_file,
-                        'error': f'予期しないエラー: {str(e)}'
-                    })
             
             # 結果の整理
             result = {
