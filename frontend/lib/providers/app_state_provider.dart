@@ -801,12 +801,21 @@ except Exception as e:
             };
           }
         } else {
-          final stderr = result.stderr.toString().trim();
-          print('Pythonプロセスエラー: $stderr');
-          return {
-            'success': false,
-            'error': stderr.isNotEmpty ? stderr : 'Pythonプロセスが異常終了しました',
-          };
+          // エラー終了でもstdoutにJSONを返す設計のため、まずstdoutをJSONとして解釈
+          final output = result.stdout.toString().trim();
+          try {
+            final jsonResult = json.decode(output);
+            jsonResult['output_folder'] = outputFolder;
+            return jsonResult;
+          } catch (_) {
+            final stderr = result.stderr.toString().trim();
+            print('Pythonプロセスエラー: $stderr');
+            return {
+              'success': false,
+              'error': stderr.isNotEmpty ? stderr : 'Pythonプロセスが異常終了しました',
+              'raw_output': output,
+            };
+          }
         }
       } catch (e) {
         print('Process.run エラー: $e');
