@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 PDF変換機能（クロスプラットフォーム対応）
 ExcelファイルをPDFに変換する - Windows/Mac対応
@@ -9,7 +11,7 @@ import platform
 import subprocess
 import sys
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union, TYPE_CHECKING
 from pathlib import Path
 
 # Excel読み込み用
@@ -303,6 +305,13 @@ class PDFConverter:
             
             story = []
             styles = getSampleStyleSheet()
+            # 日本語対応の段落スタイルを用意（エラーメッセージや通常文でも日本語フォントを使用）
+            normal_jp = ParagraphStyle(
+                'NormalJP',
+                parent=styles['Normal'],
+                fontName=JAPANESE_FONT,
+                fontSize=9
+            )
             
             # タイトルスタイル
             title_style = ParagraphStyle(
@@ -350,13 +359,13 @@ class PDFConverter:
                         story.append(table)
                         processed_sheets += 1
                     else:
-                        story.append(Paragraph("データが見つかりません", styles['Normal']))
+                        story.append(Paragraph("データが見つかりません", normal_jp))
                     
                     story.append(PageBreak())
                     
                 except Exception as e:
                     error_msg = f"シート '{sheet_name}' の処理エラー: {str(e)}"
-                    story.append(Paragraph(error_msg, styles['Normal']))
+                    story.append(Paragraph(error_msg, normal_jp))
                     story.append(PageBreak())
                     continue
             
@@ -380,7 +389,7 @@ class PDFConverter:
         except Exception as e:
             return False, f"PDF変換エラー: {str(e)}"
     
-    def _get_sheet_data(self, sheet: Worksheet, max_rows: int = 100, max_cols: int = 20) -> List[List[str]]:
+    def _get_sheet_data(self, sheet: Any, max_rows: int = 100, max_cols: int = 20) -> List[List[str]]:
         """
         シートからデータを取得
         
@@ -393,39 +402,68 @@ class PDFConverter:
             データリスト
         """
         try:
-            data = []
-            
-            # 実際に使用されている範囲を取得
-            max_row = min(sheet.max_row, max_rows) if sheet.max_row else 1
-            max_col = min(sheet.max_column, max_cols) if sheet.max_column else 1
-            
-            for row in range(1, max_row + 1):
-                row_data = []
-                for col in range(1, max_col + 1):
-                    try:
-                        cell = sheet.cell(row=row, column=col)
-                        value = cell.value
-                        
-                        # 値を文字列に変換
+            data: List[List[str]] = []
+
+            # 使用範囲を決定
+            try:
+                max_row_attr = getattr(sheet, 'max_row', 0) or 0
+                max_col_attr = getattr(sheet, 'max_column', 0) or 0
+                max_row = min(max_row_attr if isinstance(max_row_attr, int) else 0, max_rows)
+                max_col = min(max_col_attr if isinstance(max_col_attr, int) else 0, max_cols)
+            except Exception:
+                max_row = min(100, max_rows)
+                max_col = min(20, max_cols)
+
+            if max_row <= 0 or max_col <= 0:
+                return []
+
+            # 高速な一括取得（values_only=True）
+            iter_rows = getattr(sheet, 'iter_rows', None)
+            if callable(iter_rows):
+                for values in sheet.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=max_col, values_only=True):
+                    row_output: List[str] = []
+                    has_text = False
+                    for value in values:
                         if value is None:
-                            row_data.append('')
+                            s = ''
                         elif isinstance(value, (int, float)):
-                            row_data.append(str(value))
+                            s = str(value)
                         else:
-                            # 文字列として扱い、長すぎる場合は切り詰め
-                            str_value = str(value)
-                            if len(str_value) > 100:
-                                str_value = str_value[:100] + "..."
-                            row_data.append(str_value)
-                    except Exception:
-                        row_data.append('')
-                
-                # 空行をスキップ（すべてのセルが空の場合）
-                if any(cell.strip() for cell in row_data if isinstance(cell, str)):
-                    data.append(row_data)
-            
+                            s = str(value)
+                            if len(s) > 100:
+                                s = s[:100] + "..."
+                        if isinstance(s, str) and s.strip():
+                            has_text = True
+                        row_output.append(s)
+                    if has_text:
+                        data.append(row_output)
+            else:
+                # フォールバック（古いAPIやWorksheet互換）
+                for row in range(1, max_row + 1):
+                    row_output = []
+                    has_text = False
+                    for col in range(1, max_col + 1):
+                        try:
+                            cell = sheet.cell(row=row, column=col) if hasattr(sheet, 'cell') else None
+                            value = getattr(cell, 'value', None)
+                            if value is None:
+                                s = ''
+                            elif isinstance(value, (int, float)):
+                                s = str(value)
+                            else:
+                                s = str(value)
+                                if len(s) > 100:
+                                    s = s[:100] + "..."
+                            if isinstance(s, str) and s.strip():
+                                has_text = True
+                            row_output.append(s)
+                        except Exception:
+                            row_output.append('')
+                    if has_text:
+                        data.append(row_output)
+
             return data
-            
+
         except Exception as e:
             print(f"シートデータ取得エラー: {str(e)}")
             return []
