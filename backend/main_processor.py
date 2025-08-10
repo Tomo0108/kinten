@@ -6,6 +6,8 @@ CSVとExcel処理を統合する
 """
 
 import os
+import sys
+from pathlib import Path
 from typing import Dict, Any
 from csv_processor import CSVProcessor
 from excel_processor import ExcelProcessor
@@ -34,6 +36,14 @@ class KintenProcessor:
             処理結果辞書
         """
         try:
+            # macOS ではパスを正規化
+            try:
+                if sys.platform == 'darwin':
+                    csv_path = str(Path(csv_path))
+                    template_path = str(Path(template_path))
+                    base_output_dir = str(Path(base_output_dir))
+            except Exception:
+                pass
             # 1. CSVファイル読み込み
             # 従業員名を設定
             self.csv_processor.set_employee_name(employee_name)

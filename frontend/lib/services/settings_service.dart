@@ -40,8 +40,22 @@ class SettingsService {
       projectRoot = currentDir;
     }
     
-    // プラットフォーム固有のパス区切り文字を使用
-    return path.join(projectRoot, 'templates', '勤怠表雛形_2025年版.xlsx');
+    // デフォルト: プロジェクト直下の templates
+    final primary = path.join(projectRoot, 'templates', '勤怠表雛形_2025年版.xlsx');
+    try {
+      if (await File(primary).exists()) {
+        return primary;
+      }
+    } catch (_) {}
+    // フォールバック: dist/templates 配下
+    final fallback = path.join(projectRoot, 'dist', 'templates', '勤怠表雛形_2025年版.xlsx');
+    try {
+      if (await File(fallback).exists()) {
+        return fallback;
+      }
+    } catch (_) {}
+    // いずれも無ければ primary を返す（後段でユーザー選択可能）
+    return primary;
   }
 
   // テンプレートパスを取得（デフォルト値または保存された値）
@@ -134,7 +148,7 @@ class SettingsService {
       return path.join(directory.path, 'Kinten_Output');
     } catch (e) {
       print('デフォルト出力ディレクトリ取得エラー: $e');
-      // フォールバック: プロジェクトルートのoutputディレクトリ
+      // フォールバック: プロジェクトルートのdistディレクトリ
       final currentDir = Directory.current.path;
       String projectRoot;
       
@@ -152,7 +166,7 @@ class SettingsService {
         projectRoot = currentDir;
       }
       
-      return path.join(projectRoot, 'output');
+      return path.join(projectRoot, 'dist');
     }
   }
 

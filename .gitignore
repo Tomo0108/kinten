@@ -27,6 +27,7 @@ backend/lib/
 venv/
 env/
 ENV/
+.venv/
 
 # Flutter/Dart
 .dart_tool/
@@ -71,6 +72,10 @@ flutter.zip
 # Output files (keep the structure but ignore generated files)
 output/*/
 !output/.gitkeep
+
+# Distribution files (keep the structure but ignore generated files)
+dist/*/
+!dist/.gitkeep
 
 # Test files
 test_output.xlsx

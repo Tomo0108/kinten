@@ -44,6 +44,13 @@ except ImportError:
     print("Warning: reportlab not available")
     REPORTLAB_AVAILABLE = False
 
+# Excel制御用（macOS/Windows両対応だがここでは主にmacOSで使用）
+try:
+    import xlwings as xw  # type: ignore
+    XLWINGS_AVAILABLE = True
+except Exception:
+    XLWINGS_AVAILABLE = False
+
 # 日本語フォント対応
 JAPANESE_FONT = 'Helvetica'
 if REPORTLAB_AVAILABLE:
@@ -102,6 +109,9 @@ class PDFConverter:
             return False
         excel_app_path = '/Applications/Microsoft Excel.app'
         return os.path.exists(excel_app_path) and self._is_command_available('osascript')
+
+    def _is_macos_xlwings_available(self) -> bool:
+        return self.platform == 'Darwin' and XLWINGS_AVAILABLE
 
     def _is_windows_excel_available(self) -> bool:
         if self.platform != 'Windows':
@@ -176,6 +186,12 @@ class PDFConverter:
             
             for file_path in excel_files:
                 try:
+                    # macOS向けにパスを正規化
+                    try:
+                        if sys.platform == 'darwin':
+                            file_path = str(Path(file_path))
+                    except Exception:
+                        pass
                     file_name = os.path.basename(file_path)
                     file_size = os.path.getsize(file_path)
                     
@@ -340,7 +356,12 @@ class PDFConverter:
             if not REPORTLAB_AVAILABLE:
                 return False, "reportlab が利用できません"
             
-            # Excelファイルを読み込み
+            # Excelファイルを読み込み（macOS ではパスを正規化）
+            try:
+                if sys.platform == 'darwin':
+                    excel_file = str(Path(excel_file))
+            except Exception:
+                pass
             workbook = openpyxl.load_workbook(excel_file, data_only=True)
             
             # PDFドキュメントを作成
@@ -687,16 +708,18 @@ finally:
         # AppleScript（引数: 入力/出力）
         applescript = r'''
 on run argv
-    set inputPath to item 1 of argv
-    set outputPath to item 2 of argv
+    set inputPathPosix to item 1 of argv
+    set outputPathPosix to item 2 of argv
     tell application "Microsoft Excel"
         activate
         try
             set display alerts to false
         end try
-        set wb to open (POSIX file inputPath) read only yes
+        set wb to open (POSIX file inputPathPosix) read only yes
         try
-            save workbook as wb filename (POSIX file outputPath) file format PDF file format
+            -- ActiveWorkbook 全体を印刷範囲に従ってPDF化
+            set vbCmd to "ActiveWorkbook.ExportAsFixedFormat Type:=0, Filename:=\"" & outputPathPosix & "\", Quality:=0, IncludeDocProperties:=True, IgnorePrintAreas:=False, OpenAfterPublish:=False"
+            do visual basic vbCmd
         on error errMsg number errNum
             try
                 close wb saving no
@@ -749,6 +772,57 @@ end run
             except Exception:
                 pass
 
+        return converted_files, failed_files
+
+    def _excel_to_pdf_macos_xlwings(self, excel_files: List[str], output_folder: str) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+        """macOSのMicrosoft Excelをxlwings経由で用いてPDF出力（印刷範囲尊重・全シート）"""
+        converted_files: List[Dict[str, str]] = []
+        failed_files: List[Dict[str, str]] = []
+        if not XLWINGS_AVAILABLE:
+            return converted_files, [{'file': '(batch)', 'error': 'xlwingsが利用できません'}]
+        app = None
+        try:
+            app = xw.App(visible=False, add_book=False)
+            app.display_alerts = False
+            app.screen_updating = False
+            for excel_file in excel_files:
+                try:
+                    base_name = os.path.splitext(os.path.basename(excel_file))[0]
+                    pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
+                    if os.path.exists(pdf_path):
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        pdf_path = os.path.join(output_folder, f"{base_name}_{timestamp}.pdf")
+
+                    wb = app.books.open(excel_file, update_links=False, read_only=True)
+                    try:
+                        # すべてのシートを対象にPDF出力（xlwings標準API）
+                        # macOSでは内部的にAppleScriptを利用
+                        wb.to_pdf(path=pdf_path)
+                    finally:
+                        # xlwingsのBook.closeは引数なしが正しい（macOSでSaveChangesキーワードは未対応）
+                        wb.close()
+
+                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                        converted_files.append({
+                            'excel_file': excel_file,
+                            'pdf_file': pdf_path,
+                            'pdf_name': os.path.basename(pdf_path),
+                            'message': 'Excel (xlwings) によるPDF保存'
+                        })
+                    else:
+                        failed_files.append({'file': excel_file, 'error': 'PDFファイルが作成されませんでした'})
+                except Exception as e:
+                    failed_files.append({'file': excel_file, 'error': str(e)})
+        except Exception as e:
+            failed_files.append({'file': '(batch)', 'error': f'xlwingsでのExcel起動エラー: {str(e)}'})
+        finally:
+            try:
+                if app is not None:
+                    app.display_alerts = True
+                    app.screen_updating = True
+                    app.quit()
+            except Exception:
+                pass
         return converted_files, failed_files
     
     def _get_sheet_data(self, sheet: Any, max_rows: int = 100, max_cols: int = 20) -> List[List[str]]:
@@ -872,16 +946,48 @@ end run
                 failed_files.extend(fail)
 
             elif self.platform == 'Darwin':
-                # macOS: Excel(デスクトップ版)必須。未インストール時はエラー
-                if not self._is_macos_excel_available():
-                    return {
-                        'success': False,
-                        'error': 'Excelがインストールされていません',
-                        'error_type': 'excel_not_installed'
-                    }
-                conv, fail = self._excel_to_pdf_macos_excel(excel_files, output_folder)
-                converted_files.extend(conv)
-                failed_files.extend(fail)
+                # macOS: まずExcel(デスクトップ版)経由（xlwings優先→AppleScript）を試み、失敗時はopenpyxl+reportlabでフォールバック
+                if self._is_macos_xlwings_available():
+                    conv, fail = self._excel_to_pdf_macos_xlwings(excel_files, output_folder)
+                    converted_files.extend(conv)
+                    failed_files.extend(fail)
+                elif self._is_macos_excel_available():
+                    conv, fail = self._excel_to_pdf_macos_excel(excel_files, output_folder)
+                    converted_files.extend(conv)
+                    failed_files.extend(fail)
+                else:
+                    # Excelが無い場合は、reportlabがあればフォールバックを試す
+                    if OPENPYXL_AVAILABLE and REPORTLAB_AVAILABLE:
+                        for excel_path in excel_files:
+                            base_name = os.path.splitext(os.path.basename(excel_path))[0]
+                            pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
+                            ok, msg = self._excel_to_pdf_openpyxl(excel_path, pdf_path)
+                            if ok:
+                                converted_files.append({
+                                    'excel_file': excel_path,
+                                    'pdf_file': pdf_path,
+                                    'pdf_name': os.path.basename(pdf_path),
+                                    'message': 'openpyxl+reportlab によるPDF保存'
+                                })
+                            else:
+                                failed_files.append({'file': excel_path, 'error': msg})
+                    # すべて失敗した場合のフォールバック
+                    if len(converted_files) == 0 and len(failed_files) > 0 and OPENPYXL_AVAILABLE and REPORTLAB_AVAILABLE:
+                        for excel_path in excel_files:
+                            base_name = os.path.splitext(os.path.basename(excel_path))[0]
+                            pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
+                            ok, msg = self._excel_to_pdf_openpyxl(excel_path, pdf_path)
+                            if ok:
+                                converted_files.append({
+                                    'excel_file': excel_path,
+                                    'pdf_file': pdf_path,
+                                    'pdf_name': os.path.basename(pdf_path),
+                                    'message': 'openpyxl+reportlab フォールバックPDF保存'
+                                })
+                            else:
+                                # 既に失敗に入っている場合は重複させない
+                                if not any(f.get('file') == excel_path for f in failed_files):
+                                    failed_files.append({'file': excel_path, 'error': msg})
             else:
                 # その他プラットフォームは非対応
                 return {

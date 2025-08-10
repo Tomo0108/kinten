@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_state_provider.dart';
 import '../widgets/file_selector.dart';
@@ -27,13 +28,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _employeeNameController = TextEditingController();
     
     // タブ切り替え時のリスナーを追加
-    _tabController.addListener(() {
-      // タブが切り替わった時にUIを更新
-      if (_tabController.indexIsChanging) {
-        print('Tab changing from ${_tabController.previousIndex} to ${_tabController.index}');
-        setState(() {});
-      }
-    });
+      _tabController.addListener(() {
+        // タブが切り替わった時にUIを更新
+        if (_tabController.indexIsChanging) {
+          if (kDebugMode) {
+            debugPrint('Tab changing from ${_tabController.previousIndex} to ${_tabController.index}');
+          }
+          setState(() {});
+        }
+      });
   }
 
   @override
@@ -465,18 +468,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final currentTabIndex = _tabController.index;
     
     // デバッグログ
-    print('Building tab specific button for index: $currentTabIndex');
+    if (kDebugMode) {
+      debugPrint('Building tab specific button for index: $currentTabIndex');
+    }
     
     // タブに応じて専用のボタンを表示
     switch (currentTabIndex) {
       case 0:
-        print('Building auto transfer button');
+        if (kDebugMode) {
+          debugPrint('Building auto transfer button');
+        }
         return _buildAutoTransferButton(context, ref, isSmallScreen);
       case 1:
-        print('Building PDF conversion button');
+        if (kDebugMode) {
+          debugPrint('Building PDF conversion button');
+        }
         return _buildPdfConversionButton(context, ref, isSmallScreen);
       default:
-        print('Building empty button for unknown tab');
+        if (kDebugMode) {
+          debugPrint('Building empty button for unknown tab');
+        }
         return const SizedBox.shrink();
     }
   }
@@ -618,13 +629,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return StatefulBuilder(
       builder: (context, setSBState) {
         final actionable = isReady && appState.pdfConversionStatus != AppStatus.processing;
-        final scale = actionable && isHovered ? 1.02 : 1.0;
+        final isMacOSPlatform = defaultTargetPlatform == TargetPlatform.macOS;
+        final scale = (actionable && isHovered && !isMacOSPlatform) ? 1.02 : 1.0;
         return Container(
       margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
       child: Center(
         child: MouseRegion(
-          onEnter: (_) { if (actionable) setSBState(() => isHovered = true); },
-          onExit:  (_) { if (actionable) setSBState(() => isHovered = false); },
+          onEnter: isMacOSPlatform ? null : (_) { if (actionable) setSBState(() => isHovered = true); },
+          onExit:  isMacOSPlatform ? null : (_) { if (actionable) setSBState(() => isHovered = false); },
           child: AnimatedScale(
             duration: const Duration(milliseconds: 120),
             scale: scale,

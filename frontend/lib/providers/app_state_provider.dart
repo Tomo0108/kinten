@@ -111,6 +111,113 @@ class AppStateNotifier extends StateNotifier<AppState> {
     }
   }
 
+  // プロジェクト固有のPythonを優先的に解決（.venv/bin/python を優先）
+  Future<String> _resolvePythonForProject(String projectRoot) async {
+    try {
+      final venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
+      if (await File(venvPython).exists()) {
+        return venvPython;
+      }
+    } catch (_) {}
+    return _resolvePythonCommand();
+  }
+
+  // macOS: ログをファイルに出力（print抑制時の診断用）
+  Future<void> _logToFile(String message) async {
+    if (!Platform.isMacOS) return;
+    try {
+      final home = Platform.environment['HOME'];
+      if (home == null || home.isEmpty) return;
+      final logDir = Directory(path.join(home, 'Library', 'Logs'));
+      if (!await logDir.exists()) {
+        await logDir.create(recursive: true);
+      }
+      final logFile = File(path.join(logDir.path, 'kinten.log'));
+      final ts = DateTime.now().toIso8601String();
+      await logFile.writeAsString('[' + ts + '] ' + message + '\n', mode: FileMode.append, flush: true);
+    } catch (_) {}
+  }
+
+  // backend/main.py を含むプロジェクトルートを上位探索で特定
+  Future<String?> _discoverProjectRootFrom(String startDir, {int maxLevels = 7}) async {
+    try {
+      var dir = Directory(startDir);
+      for (int i = 0; i < maxLevels; i++) {
+        final backendDir = Directory(path.join(dir.path, 'backend'));
+        final backendMain = File(path.join(dir.path, 'backend', 'main.py'));
+        if (await backendDir.exists() && await backendMain.exists()) {
+          return dir.path;
+        }
+
+        final distBackendDir = Directory(path.join(dir.path, 'dist', 'backend'));
+        final distBackendMain = File(path.join(dir.path, 'dist', 'backend', 'main.py'));
+        if (await distBackendDir.exists() && await distBackendMain.exists()) {
+          return path.join(dir.path, 'dist');
+        }
+
+        final parent = dir.parent;
+        if (parent.path == dir.path) break;
+        dir = parent;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // macOS向け: Process.start で標準出力/標準エラーをストリーム購読しつつ実行
+  Future<ProcessResult> _runProcessMacStreaming(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    Duration timeout = const Duration(seconds: 180),
+  }) async {
+    final process = await Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+      environment: environment,
+      runInShell: false,
+      mode: ProcessStartMode.normal,
+    );
+
+    final StringBuffer stdoutBuffer = StringBuffer();
+    final StringBuffer stderrBuffer = StringBuffer();
+
+    final stdoutDone = Completer<void>();
+    final stderrDone = Completer<void>();
+
+    process.stdout.transform(utf8.decoder).listen(
+      (data) => stdoutBuffer.write(data),
+      onDone: () => stdoutDone.complete(),
+    );
+    process.stderr.transform(utf8.decoder).listen(
+      (data) => stderrBuffer.write(data),
+      onDone: () => stderrDone.complete(),
+    );
+
+    int exitCode;
+    try {
+      exitCode = await process.exitCode.timeout(timeout);
+    } on TimeoutException {
+      try { process.kill(ProcessSignal.sigkill); } catch (_) {}
+      rethrow;
+    }
+
+    // 出力の取りこぼしを防ぐため、終了後に短い待機で購読完了を待つ
+    try {
+      await Future.wait([stdoutDone.future, stderrDone.future]).timeout(
+        const Duration(seconds: 5),
+      );
+    } catch (_) {}
+
+    return ProcessResult(
+      process.pid,
+      exitCode,
+      stdoutBuffer.toString(),
+      stderrBuffer.toString(),
+    );
+  }
+
   // パスをPythonコード用に安全にエスケープ
   String _escapePathForPython(String path) {
     // バックスラッシュをスラッシュに変換し、特殊文字をエスケープ
@@ -458,11 +565,59 @@ class AppStateNotifier extends StateNotifier<AppState> {
       // プロジェクトルートを取得
       final currentDir = Directory.current.path;
       print('Current directory (Python backend): $currentDir'); // デバッグログ
+      await _logToFile('start _callPythonBackend cwd=' + currentDir);
       
       String projectRoot;
       // Flutterアプリがビルドされて実行される場合のパス処理
-      if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
+      if (currentDir.contains('frontend${path.separator}build${path.separator}macos${path.separator}Build${path.separator}Products')) {
+        // macOSビルド出力ディレクトリからプロジェクトルートを解決
+        final productsDir = Directory(currentDir);
+        final buildDir = productsDir.parent;         // Build
+        final macosDir = buildDir.parent;            // macos
+        final buildRoot = macosDir.parent;           // build
+        final frontendDir = buildRoot.parent;        // frontend
+        projectRoot = frontendDir.parent.path;       // プロジェクトルート
+        print('Project root (from macOS Products - Python): $projectRoot');
+        await _logToFile('projectRoot from macOS Products=' + projectRoot);
+      } else if (Platform.isMacOS && (
+          currentDir.contains('kinten.app${path.separator}Contents${path.separator}MacOS') ||
+          File(Platform.resolvedExecutable).parent.path.contains('kinten.app${path.separator}Contents${path.separator}MacOS'))
+      ) {
+        // アプリバンドル内（dist/macos/kinten.app/Contents/MacOS など）からプロジェクトルートを解決
+        try {
+          // 実行バイナリの位置から解決（Directory.current が '/' になる場合の対策）
+          final exeDir = File(Platform.resolvedExecutable).parent.path;
+          // dist候補（4階層上）とリポジトリ候補（5階層上）を順に確認
+          var up = Directory(exeDir);
+          for (int i = 0; i < 4; i++) { up = up.parent; }
+          final distCandidate = up.path; // .../dist
+          final distBackend = File(path.join(distCandidate, 'backend', 'main.py'));
+          if (distBackend.existsSync()) {
+            projectRoot = distCandidate;
+            print('Project root (dist) from app bundle: $projectRoot');
+            await _logToFile('projectRoot from app bundle(dist)=' + projectRoot);
+          } else {
+            // 5階層上（リポジトリ想定）
+            var upRepo = Directory(distCandidate).parent;
+            final repoCandidate = upRepo.path;
+            final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
+            projectRoot = repoBackend.existsSync() ? repoCandidate : distCandidate;
+            print('Project root (repo or dist fallback) from app bundle: $projectRoot');
+            await _logToFile('projectRoot from app bundle(repo/dist)=' + projectRoot);
+          }
+          // 上位探索による最終確認
+          final discovered = await _discoverProjectRootFrom(projectRoot);
+          if (discovered != null) {
+            projectRoot = discovered;
+            await _logToFile('Resolved projectRoot via discovery: ' + projectRoot);
+          }
+        } catch (_) {
+          projectRoot = currentDir;
+          print('Fallback project root (from app bundle - Python): $projectRoot');
+          await _logToFile('Fallback projectRoot (app bundle)=' + projectRoot);
+        }
+      } else if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
+        // Windows Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
         final releaseDir = Directory(currentDir);
         final runnerDir = releaseDir.parent;
         final x64Dir = runnerDir.parent;
@@ -470,13 +625,16 @@ class AppStateNotifier extends StateNotifier<AppState> {
         final buildDir = windowsDir.parent;
         final frontendDir = buildDir.parent;
         projectRoot = frontendDir.parent.path;
-        print('Project root (from Release - Python): $projectRoot'); // デバッグログ
+        print('Project root (from Windows Release - Python): $projectRoot');
+        await _logToFile('projectRoot from Windows Release=' + projectRoot);
       } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
         projectRoot = Directory(currentDir).parent.path;
         print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
+        await _logToFile('projectRoot from frontend dir=' + projectRoot);
       } else {
         projectRoot = currentDir;
         print('Project root (current - Python): $projectRoot'); // デバッグログ
+        await _logToFile('projectRoot from current=' + projectRoot);
       }
       
       // ファイル存在チェック
@@ -491,6 +649,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
       print('Employee Name: ${state.employeeName}');
       print('Output Path: ${state.outputPath}');
       print('=== ファイル存在チェック完了 ===');
+      await _logToFile('pre-run check ok; projectRoot=' + projectRoot);
       
       if (!await csvFile.exists()) {
         return {
@@ -509,7 +668,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
       // ファイルパスをエスケープ（より安全な方法）
       final csvPath = state.csvPath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final templatePath = state.templatePath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
-      final outputPath = path.join(projectRoot, 'output').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
+      final outputPath = path.join(projectRoot, 'dist').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final employeeName = state.employeeName.replaceAll('"', '\\"').replaceAll("'", "\\'");
       
       // デバッグログ
@@ -633,6 +792,7 @@ except Exception as e:
       
       print('Executing Python command in directory: $projectRoot');
       print('Python code length: ${pythonCode.length}');
+      await _logToFile('execute python in=' + projectRoot);
       
       // 一時ファイルにPythonコードを保存して実行（より安全な方法）
       final tempDir = Directory.systemTemp;
@@ -648,7 +808,7 @@ except Exception as e:
         print('Python script saved to: ${tempFile.path}');
         
         // システムのPythonを使用（Windowsではpyコマンド）
-        final pythonCommand = await _resolvePythonCommand();
+      final pythonCommand = await _resolvePythonForProject(projectRoot);
         print('Using Python command: $pythonCommand');
         
         // Python実行時の環境変数を設定
@@ -660,9 +820,19 @@ except Exception as e:
           'PYTHONLEGACYWINDOWSSTDIO': 'utf-8',
         };
         
-        final result = await Process.run(pythonCommand, [
-          tempFile.path,
-        ], workingDirectory: projectRoot, environment: env);
+        final result = Platform.isMacOS
+            ? await _runProcessMacStreaming(
+                pythonCommand,
+                [tempFile.path],
+                workingDirectory: projectRoot,
+                environment: env,
+              )
+            : await Process.run(
+                pythonCommand,
+                [tempFile.path],
+                workingDirectory: projectRoot,
+                environment: env,
+              );
         
         print('=== Pythonプロセス実行結果 ===');
         print('Exit code: ${result.exitCode}');
@@ -671,6 +841,8 @@ except Exception as e:
         print('Stderr length: ${result.stderr.toString().length}');
         print('Stderr: ${result.stderr}');
         print('=== Pythonプロセス実行結果完了 ===');
+        await _logToFile('Python exit=${result.exitCode}');
+        await _logToFile('Python stderr len=${result.stderr.toString().length}');
         
         // 一時ファイルを削除
         await tempFile.delete();
@@ -707,8 +879,49 @@ except Exception as e:
       String projectRoot;
       
       // パス解決ロジックを修正
-      if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
-        // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
+      if (currentDir.contains('frontend${path.separator}build${path.separator}macos${path.separator}Build${path.separator}Products')) {
+        // macOSビルド出力ディレクトリからプロジェクトルートを解決
+        final productsDir = Directory(currentDir);
+        final buildDir = productsDir.parent;   // Build
+        final macosDir = buildDir.parent;      // macos
+        final buildRoot = macosDir.parent;     // build
+        final frontendDir = buildRoot.parent;  // frontend
+        projectRoot = frontendDir.parent.path; // プロジェクトルート
+        print('macOS Products環境からプロジェクトルートを解決: $projectRoot');
+      } else if (Platform.isMacOS && (
+          currentDir.contains('kinten.app${path.separator}Contents${path.separator}MacOS') ||
+          File(Platform.resolvedExecutable).parent.path.contains('kinten.app${path.separator}Contents${path.separator}MacOS'))
+      ) {
+        // アプリバンドル（dist/macos/kinten.app/Contents/MacOS）からプロジェクトルートを解決
+        try {
+          // 実行バイナリの位置から解決（Directory.current が '/' になる場合の対策）
+          final exeDir = File(Platform.resolvedExecutable).parent.path;
+          // dist候補（4階層上）とリポジトリ候補（5階層上）を順に確認
+          var up = Directory(exeDir);
+          for (int i = 0; i < 4; i++) { up = up.parent; }
+          final distCandidate = up.path; // .../dist
+          final distBackend = File(path.join(distCandidate, 'backend', 'main.py'));
+          if (distBackend.existsSync()) {
+            projectRoot = distCandidate;
+            print('プロジェクトルート(dist)をアプリバンドルから解決: $projectRoot');
+          } else {
+            var upRepo = Directory(distCandidate).parent;
+            final repoCandidate = upRepo.path;
+            final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
+            projectRoot = repoBackend.existsSync() ? repoCandidate : distCandidate;
+            print('プロジェクトルート(repoまたはdist)をアプリバンドルから解決: $projectRoot');
+          }
+          final discovered = await _discoverProjectRootFrom(projectRoot);
+          if (discovered != null) {
+            projectRoot = discovered;
+            await _logToFile('Resolved projectRoot via discovery(pdf): ' + projectRoot);
+          }
+        } catch (_) {
+          projectRoot = currentDir;
+          print('アプリバンドル環境のフォールバック: $projectRoot');
+        }
+      } else if (currentDir.contains('frontend\\build\\windows\\x64\\runner\\Release')) {
+        // Windows Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
         final releaseDir = Directory(currentDir);
         final runnerDir = releaseDir.parent;
         final x64Dir = runnerDir.parent;
@@ -716,7 +929,7 @@ except Exception as e:
         final buildDir = windowsDir.parent;
         final frontendDir = buildDir.parent;
         projectRoot = frontendDir.parent.path;
-        print('Release環境からプロジェクトルートを解決: $projectRoot');
+        print('Windows Release環境からプロジェクトルートを解決: $projectRoot');
       } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend\\')) {
         projectRoot = Directory(currentDir).parent.path;
         print('frontendディレクトリからプロジェクトルートを解決: $projectRoot');
@@ -729,6 +942,7 @@ except Exception as e:
       final projectRootDir = Directory(projectRoot);
       if (!await projectRootDir.exists()) {
         print('プロジェクトルートが存在しません: $projectRoot');
+        await _logToFile('projectRoot missing(pdf): ' + projectRoot);
         return {
           'success': false,
           'error': 'プロジェクトルートが見つかりません: $projectRoot',
@@ -739,6 +953,7 @@ except Exception as e:
       final backendDir = Directory('$projectRoot/backend');
       if (!await backendDir.exists()) {
         print('バックエンドディレクトリが存在しません: $projectRoot/backend');
+        await _logToFile('backend missing(pdf): ' + backendDir.path);
         return {
           'success': false,
           'error': 'バックエンドディレクトリが見つかりません: $projectRoot/backend',
@@ -751,7 +966,7 @@ except Exception as e:
       if (exePath != null) {
         outputFolderResult = await _callBackendExe(exePath, {
           'process_type': 'create_pdf_output_folder',
-          'base_output_dir': path.join(projectRoot, 'output').replaceAll('\\', '/'),
+          'base_output_dir': path.join(projectRoot, 'dist').replaceAll('\\', '/'),
         }, workingDirectory: projectRoot);
       } else {
         outputFolderResult = await _createPdfOutputFolder(projectRoot);
@@ -849,7 +1064,7 @@ except Exception as e:
         await tempFile.writeAsString(pythonCode);
         print('Pythonスクリプトを保存: ${tempFile.path}');
         
-        final pythonCommand = await _resolvePythonCommand();
+        final pythonCommand = await _resolvePythonForProject(projectRoot);
         print('Pythonコマンド: $pythonCommand');
         
         final env = <String, String>{
@@ -863,9 +1078,20 @@ except Exception as e:
         print('環境変数設定完了');
         print('Pythonプロセス実行開始...');
         
-        final result = await Process.run(pythonCommand, [
-          tempFile.path,
-        ], workingDirectory: projectRoot, environment: env);
+        final result = Platform.isMacOS
+            ? await _runProcessMacStreaming(
+                pythonCommand,
+                [tempFile.path],
+                workingDirectory: projectRoot,
+                environment: env,
+              )
+            : await Process.run(
+                pythonCommand,
+                [tempFile.path],
+                workingDirectory: projectRoot,
+                environment: env,
+              );
+        await _logToFile('PDF Python exit=${result.exitCode}');
         
         print('=== Pythonプロセス実行結果 ===');
         print('Exit code: ${result.exitCode}');
@@ -990,23 +1216,49 @@ except Exception as e:
           'PYTHONIOENCODING': 'utf-8',
           'PYTHONUTF8': '1',
           'PYTHONPATH': '$normalizedProjectRoot/backend',
+          'PYTHONWARNINGS': 'ignore',
         };
         
-        final result = await Process.run(pythonCommand, [
-          tempFile.path,
-        ], workingDirectory: projectRoot, environment: env);
+        final result = Platform.isMacOS
+            ? await _runProcessMacStreaming(
+                pythonCommand,
+                [tempFile.path],
+                workingDirectory: projectRoot,
+                environment: env,
+              )
+            : await Process.run(
+                pythonCommand,
+                [tempFile.path],
+                workingDirectory: projectRoot,
+                environment: env,
+              );
         
         await tempFile.delete();
         
-        if (result.exitCode == 0) {
-          final output = result.stdout.toString().trim();
-          return json.decode(output);
-        } else {
-          return {
-            'success': false,
-            'error': result.stderr.toString().trim(),
-          };
+        // 出力の先頭に警告等が混在してもJSON部分だけを抽出して解釈
+        final output = result.stdout.toString().trim();
+        Map<String, dynamic>? parsed;
+        try {
+          parsed = json.decode(output);
+        } catch (_) {
+          final s = output;
+          final start = s.indexOf('{');
+          final end = s.lastIndexOf('}');
+          if (start != -1 && end != -1 && end > start) {
+            try {
+              parsed = json.decode(s.substring(start, end + 1));
+            } catch (_) {}
+          }
         }
+        if (parsed != null) return parsed;
+        
+        return {
+          'success': false,
+          'error': result.stderr.toString().trim().isNotEmpty
+              ? result.stderr.toString().trim()
+              : 'JSON解析に失敗しました',
+          'raw_output': output,
+        };
       } catch (e) {
         try {
           await tempFile.delete();
