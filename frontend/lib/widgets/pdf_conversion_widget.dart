@@ -45,6 +45,34 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
             // シンプルなヘッダー
             _buildSimpleHeader(isSmallScreen),
 
+            // 注意書き（Excelインストール必須）
+            Container(
+              margin: EdgeInsets.only(top: isSmallScreen ? 8 : 10),
+              padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDEDEC),
+                borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
+                border: Border.all(color: const Color(0xFFE74C3C).withOpacity(0.2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: const Color(0xFFE74C3C), size: isSmallScreen ? 18 : 20),
+                  SizedBox(width: isSmallScreen ? 8 : 10),
+                  Expanded(
+                    child: Text(
+                      '本機能を使用するには、Excel(デスクトップ版)のインストールが必要です。',
+                      style: TextStyle(
+                        color: const Color(0xFFE74C3C),
+                        fontSize: isSmallScreen ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             SizedBox(height: isSmallScreen ? 20 : 28),
 
             // Excelファイル選択セクション

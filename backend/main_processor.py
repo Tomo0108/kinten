@@ -191,23 +191,18 @@ class KintenProcessor:
             結果辞書
         """
         try:
-            # 現在の日付から作業月を取得（YYYYMM形式）
-            from datetime import datetime
-            current_date = datetime.now()
-            work_month = current_date.strftime("%Y%m")
-            
-            # 作業月フォルダを作成（例：202507）
-            work_month_folder = os.path.join(output_folder, work_month)
-            os.makedirs(work_month_folder, exist_ok=True)
-            
-            # PDF変換を実行（作業月フォルダに出力）
-            result = self.pdf_converter.convert_to_pdf(excel_files, work_month_folder)
-            
+            # ここでの月フォルダ作成は行わない（呼び出し側で既に日付フォルダを作成済み）
+            # 渡された output_folder をそのまま利用
+            os.makedirs(output_folder, exist_ok=True)
+
+            # PDF変換を実行（指定フォルダに出力）
+            result = self.pdf_converter.convert_to_pdf(excel_files, output_folder)
+
             # 変換されたファイル数を追加
-            if result['success']:
+            if result.get('success'):
                 result['converted_count'] = len(excel_files)
-                result['output_folder'] = work_month_folder
-            
+                result['output_folder'] = output_folder
+
             return result
             
         except Exception as e:

@@ -614,10 +614,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           }
         : null;
     
-    return Container(
+    bool isHovered = false;
+    return StatefulBuilder(
+      builder: (context, setSBState) {
+        final actionable = isReady && appState.pdfConversionStatus != AppStatus.processing;
+        final scale = actionable && isHovered ? 1.02 : 1.0;
+        return Container(
       margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
       child: Center(
-        child: Container(
+        child: MouseRegion(
+          onEnter: (_) { if (actionable) setSBState(() => isHovered = true); },
+          onExit:  (_) { if (actionable) setSBState(() => isHovered = false); },
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 120),
+            scale: scale,
+            child: Container(
           decoration: BoxDecoration(
             gradient: isReady && appState.pdfConversionStatus != AppStatus.processing
                 ? appState.pdfConversionStatus == AppStatus.success
@@ -696,8 +707,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ),
+            ),
+          ),
         ),
       ),
+    );
+      }
     );
   }
 } 

@@ -2,15 +2,28 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "Kinten Backend Build Start" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 
-# Activate virtual environment if not already active
+# Activate virtual environment if available
 if (-not $env:VIRTUAL_ENV) {
-    Write-Host "Activating virtual environment..." -ForegroundColor Yellow
-    & ".\venv\Scripts\Activate.ps1"
+    if (Test-Path ".\venv\Scripts\Activate.ps1") {
+        Write-Host "Activating virtual environment..." -ForegroundColor Yellow
+        & ".\venv\Scripts\Activate.ps1"
+    } else {
+        Write-Host "Virtual environment not found. Using system Python/pip." -ForegroundColor Yellow
+    }
 }
 
 # Install dependencies
 Write-Host "Installing dependencies..." -ForegroundColor Yellow
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+# Ensure PyInstaller is available
+Write-Host "Checking PyInstaller..." -ForegroundColor Yellow
+$pyi = Get-Command pyinstaller -ErrorAction SilentlyContinue
+if (-not $pyi) {
+    Write-Host "PyInstaller not found. Installing..." -ForegroundColor Yellow
+    python -m pip install pyinstaller
+}
 
 # Check data folders
 Write-Host "Checking data folders..." -ForegroundColor Yellow
@@ -43,9 +56,7 @@ if (-not (Test-Path "dist")) {
     New-Item -ItemType Directory -Path "dist" -Force
 }
 
-# Copy backend executable to dist
-Write-Host "Copying backend executable to dist..." -ForegroundColor Yellow
-Copy-Item "dist\kinten_backend.exe" "dist\kinten_backend.exe" -Force
+# No need to copy the executable onto itself
 
 # Copy data folders to dist
 Write-Host "Copying data folders to dist..." -ForegroundColor Yellow

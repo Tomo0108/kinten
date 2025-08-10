@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as path;
@@ -147,10 +148,23 @@ class AppStateNotifier extends StateNotifier<AppState> {
     // 入力（JSON）を送信
     process.stdin.writeln(json.encode(payload));
     await process.stdin.close();
-
-    final stdoutStr = await process.stdout.transform(utf8.decoder).join();
-    final stderrStr = await process.stderr.transform(utf8.decoder).join();
-    final exitCode = await process.exitCode;
+    // タイムアウト導入（既定120秒）
+    const Duration timeout = Duration(seconds: 120);
+    String stdoutStr = '';
+    String stderrStr = '';
+    int exitCode = -1;
+    try {
+      stdoutStr = await process.stdout.transform(utf8.decoder).join().timeout(timeout);
+      stderrStr = await process.stderr.transform(utf8.decoder).join().timeout(timeout);
+      exitCode = await process.exitCode.timeout(timeout);
+    } on TimeoutException {
+      // タイムアウト時はプロセスを強制終了
+      try { process.kill(ProcessSignal.sigkill); } catch (_) {}
+      return <String, dynamic>{
+        'success': false,
+        'error': 'バックエンドがタイムアウトしました（120秒）',
+      };
+    }
 
     // できる限りstdoutをJSONとして解釈（exit codeに関わらず）
     try {
@@ -421,7 +435,10 @@ class AppStateNotifier extends StateNotifier<AppState> {
           }
         }
       } else {
-        final errorMessage = result['error'] ?? 'PDF変換に失敗しました';
+        final rawErr = result['error']?.toString() ?? '';
+        final errorMessage = rawErr.contains('excel_not_installed') || rawErr.contains('Excelがインストールされていません')
+            ? 'Excelがインストールされていません'
+            : (rawErr.isNotEmpty ? rawErr : 'PDF変換に失敗しました');
         print('PDF変換エラー: $errorMessage');
         setPdfConversionError(errorMessage);
       }

@@ -13,6 +13,8 @@ import sys
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple, Union, TYPE_CHECKING
 from pathlib import Path
+import shutil
+import tempfile
 
 # Excel読み込み用
 try:
@@ -87,6 +89,46 @@ class PDFConverter:
             'dependencies': deps,
             'missing_deps': [k for k, v in deps.items() if not v]
         }
+
+    def _is_command_available(self, command: str) -> bool:
+        try:
+            result = shutil.which(command)
+            return result is not None
+        except Exception:
+            return False
+
+    def _is_macos_excel_available(self) -> bool:
+        if self.platform != 'Darwin':
+            return False
+        excel_app_path = '/Applications/Microsoft Excel.app'
+        return os.path.exists(excel_app_path) and self._is_command_available('osascript')
+
+    def _is_windows_excel_available(self) -> bool:
+        if self.platform != 'Windows':
+            return False
+        try:
+            import pythoncom  # type: ignore
+            import win32com.client  # type: ignore
+        except Exception:
+            return False
+        excel_app = None
+        try:
+            pythoncom.CoInitialize()
+            try:
+                excel_app = win32com.client.Dispatch("Excel.Application")
+                return True
+            except Exception:
+                return False
+        finally:
+            try:
+                if excel_app is not None:
+                    excel_app.Quit()
+            except Exception:
+                pass
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
         
     def get_excel_files(self, folder_path: str) -> Dict[str, Any]:
         """
@@ -396,6 +438,7 @@ class PDFConverter:
         try:
             import pythoncom  # type: ignore
             import win32com.client  # type: ignore
+            from win32com.client import constants  # type: ignore
         except Exception as e:
             return [], [{
                 'file': '(batch)',
@@ -409,6 +452,21 @@ class PDFConverter:
             excel_app.Visible = False
             excel_app.ScreenUpdating = False
             excel_app.DisplayAlerts = False
+            try:
+                # マクロやセキュリティ関連のダイアログ抑止
+                # msoAutomationSecurityForceDisable = 3
+                excel_app.AutomationSecurity = 3  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                # リンク更新やイベントによるダイアログ抑止
+                excel_app.AskToUpdateLinks = False  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                excel_app.EnableEvents = False  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
             for excel_file in excel_files:
                 try:
@@ -420,8 +478,17 @@ class PDFConverter:
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                         pdf_path = os.path.join(output_folder, f"{base_name}_{timestamp}.pdf")
 
-                    # ブックを開く（読み取り専用）
-                    wb = excel_app.Workbooks.Open(excel_file, ReadOnly=True)
+                    # ブックを開く（読み取り専用・リンク更新や推奨読み取り専用を無視）
+                    wb = excel_app.Workbooks.Open(
+                        excel_file,
+                        ReadOnly=True,
+                        UpdateLinks=False,
+                        IgnoreReadOnlyRecommended=True,
+                        Editable=False,
+                        Notify=False,
+                        AddToMru=False,
+                        Local=True,
+                    )
                     try:
                         # ブック単位でPDFへ（全シート対象・印刷設定を尊重）
                         # Type=0 (xlTypePDF)
@@ -470,6 +537,215 @@ class PDFConverter:
             try:
                 import pythoncom  # type: ignore
                 pythoncom.CoUninitialize()
+            except Exception:
+                pass
+
+        return converted_files, failed_files
+
+    def _find_python_executable(self) -> Optional[str]:
+        """実行可能なPythonコマンドを探す（Windows用フォールバックに利用）"""
+        candidates: List[str] = []
+        try:
+            if sys.executable and ('python' in os.path.basename(sys.executable).lower()):
+                candidates.append(sys.executable)
+        except Exception:
+            pass
+        # 環境変数に指定があれば優先
+        if os.environ.get('PYTHON'):
+            candidates.append(os.environ['PYTHON'])
+        # 一般的な候補
+        candidates.extend(['py', 'python', 'python3'])
+
+        for c in candidates:
+            try:
+                proc = subprocess.run([c, '--version'], capture_output=True, text=True, timeout=5)
+                if proc.returncode == 0:
+                    return c
+            except Exception:
+                continue
+        return None
+
+    def _excel_to_pdf_win32_one_subprocess(self, excel_file: str, output_folder: str, timeout_seconds: int = 90) -> Tuple[bool, str, Optional[str]]:
+        """
+        単一Excel→PDF変換をサブプロセスで実行（ハング耐性向上）
+
+        Returns: (ok, error_message, pdf_path)
+        """
+        python_cmd = self._find_python_executable()
+        if not python_cmd:
+            return False, 'Python実行環境が見つかりません（サブプロセス方式）', None
+
+        child_code = r'''
+import sys, os
+try:
+    import pythoncom
+    import win32com.client
+    from datetime import datetime
+except Exception as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(1)
+
+excel_file = sys.argv[1]
+output_folder = sys.argv[2]
+pythoncom.CoInitialize()
+excel_app = None
+try:
+    excel_app = win32com.client.Dispatch("Excel.Application")
+    excel_app.Visible = False
+    excel_app.ScreenUpdating = False
+    excel_app.DisplayAlerts = False
+    try:
+        excel_app.AutomationSecurity = 3
+    except Exception:
+        pass
+    try:
+        excel_app.AskToUpdateLinks = False
+    except Exception:
+        pass
+    try:
+        excel_app.EnableEvents = False
+    except Exception:
+        pass
+
+    base_name = os.path.splitext(os.path.basename(excel_file))[0]
+    pdf_path = os.path.join(output_folder, base_name + ".pdf")
+    if os.path.exists(pdf_path):
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        pdf_path = os.path.join(output_folder, f"{base_name}_{ts}.pdf")
+
+    wb = excel_app.Workbooks.Open(
+        excel_file,
+        ReadOnly=True,
+        UpdateLinks=False,
+        IgnoreReadOnlyRecommended=True,
+        Editable=False,
+        Notify=False,
+        AddToMru=False,
+        Local=True,
+    )
+    try:
+        wb.ExportAsFixedFormat(
+            0,
+            pdf_path,
+            Quality=0,
+            IncludeDocProperties=True,
+            IgnorePrintAreas=False,
+            OpenAfterPublish=False
+        )
+    finally:
+        wb.Close(SaveChanges=False)
+
+    if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+        print('PDFファイルの作成に失敗しました', file=sys.stderr)
+        sys.exit(2)
+
+    print(pdf_path)
+    sys.exit(0)
+except Exception as e:
+    import traceback
+    print(str(e), file=sys.stderr)
+    print(traceback.format_exc(), file=sys.stderr)
+    sys.exit(1)
+finally:
+    try:
+        if excel_app is not None:
+            excel_app.DisplayAlerts = True
+            excel_app.ScreenUpdating = True
+            excel_app.Quit()
+    except Exception:
+        pass
+    try:
+        pythoncom.CoUninitialize()
+    except Exception:
+        pass
+'''
+
+        try:
+            proc = subprocess.run(
+                [python_cmd, '-c', child_code, excel_file, output_folder],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+            )
+            if proc.returncode == 0:
+                pdf_path = proc.stdout.strip().splitlines()[-1] if proc.stdout else None
+                return True, '', pdf_path
+            return False, (proc.stderr or 'サブプロセス変換エラー'), None
+        except subprocess.TimeoutExpired:
+            return False, f'サブプロセスがタイムアウトしました（{timeout_seconds}秒）', None
+        except Exception as e:
+            return False, str(e), None
+
+    def _excel_to_pdf_macos_excel(self, excel_files: List[str], output_folder: str, timeout_seconds: int = 90) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+        """macOSのMicrosoft ExcelをAppleScript経由で用いてPDF出力"""
+        converted_files: List[Dict[str, str]] = []
+        failed_files: List[Dict[str, str]] = []
+
+        if not self._is_macos_excel_available():
+            return [], [{'file': '(batch)', 'error': 'Microsoft Excel (macOS) または osascript が見つかりません'}]
+
+        # AppleScript（引数: 入力/出力）
+        applescript = r'''
+on run argv
+    set inputPath to item 1 of argv
+    set outputPath to item 2 of argv
+    tell application "Microsoft Excel"
+        activate
+        try
+            set display alerts to false
+        end try
+        set wb to open (POSIX file inputPath) read only yes
+        try
+            save workbook as wb filename (POSIX file outputPath) file format PDF file format
+        on error errMsg number errNum
+            try
+                close wb saving no
+            end try
+            error errMsg number errNum
+        end try
+        close wb saving no
+    end tell
+end run
+'''
+
+        # 一時ファイルに保存
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.scpt', delete=False) as f:
+                script_path = f.name
+                f.write(applescript)
+        except Exception as e:
+            return [], [{'file': '(batch)', 'error': f'AppleScript作成エラー: {str(e)}'}]
+
+        try:
+            for excel_file in excel_files:
+                try:
+                    base_name = os.path.splitext(os.path.basename(excel_file))[0]
+                    pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
+                    if os.path.exists(pdf_path):
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        pdf_path = os.path.join(output_folder, f"{base_name}_{timestamp}.pdf")
+
+                    proc = subprocess.run([
+                        'osascript', script_path, excel_file, pdf_path
+                    ], capture_output=True, text=True, timeout=timeout_seconds)
+
+                    if proc.returncode == 0 and os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                        converted_files.append({
+                            'excel_file': excel_file,
+                            'pdf_file': pdf_path,
+                            'pdf_name': os.path.basename(pdf_path),
+                            'message': 'Excel (macOS) によるPDF保存'
+                        })
+                    else:
+                        err = proc.stderr.strip() or 'Excel (macOS) 変換エラー'
+                        failed_files.append({'file': excel_file, 'error': err})
+                except subprocess.TimeoutExpired:
+                    failed_files.append({'file': excel_file, 'error': f'Excel (macOS) がタイムアウトしました（{timeout_seconds}秒）'})
+                except Exception as e:
+                    failed_files.append({'file': excel_file, 'error': str(e)})
+        finally:
+            try:
+                os.remove(script_path)
             except Exception:
                 pass
 
@@ -566,52 +842,56 @@ class PDFConverter:
             結果辞書
         """
         try:
-            # 依存関係の確認
-            deps = self._check_dependencies()
-            missing_deps = [k for k, v in deps.items() if not v]
-            
-            if missing_deps:
-                return {
-                    'success': False,
-                    'error': f'必要なライブラリが不足しています: {", ".join(missing_deps)}',
-                    'error_type': 'missing_dependencies',
-                    'missing_dependencies': missing_deps,
-                    'system_info': self.get_system_info()
-                }
-            
-            # 出力フォルダの存在確認
+            # 出力フォルダの存在確認（なければ作成）
+            try:
+                Path(output_folder).mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
             if not os.path.exists(output_folder):
                 return {
                     'success': False,
                     'error': f'出力フォルダが見つかりません: {output_folder}',
                     'error_type': 'output_folder_not_found'
                 }
-            
-            converted_files = []
-            failed_files = []
-            validation_errors = []
-            
-            # Windowsでは必ずExcelネイティブ（COM）で全シートをそのままPDF出力
+
+            converted_files: List[Dict[str, str]] = []
+            failed_files: List[Dict[str, str]] = []
+            validation_errors: List[Dict[str, str]] = []
+
+            # プラットフォーム別処理
             if self.platform == 'Windows':
-                if not self._check_dependencies().get('pywin32', False):
+                # Windows: Excel(デスクトップ版)必須。未インストール時はエラー
+                if not self._is_windows_excel_available():
                     return {
                         'success': False,
-                        'error': 'Windows環境での変換には pywin32 が必要です（Excelネイティブ出力）。',
-                        'error_type': 'missing_pywin32'
+                        'error': 'Excelがインストールされていません',
+                        'error_type': 'excel_not_installed'
                     }
                 conv, fail = self._excel_to_pdf_win32(excel_files, output_folder)
                 converted_files.extend(conv)
                 failed_files.extend(fail)
+
+            elif self.platform == 'Darwin':
+                # macOS: Excel(デスクトップ版)必須。未インストール時はエラー
+                if not self._is_macos_excel_available():
+                    return {
+                        'success': False,
+                        'error': 'Excelがインストールされていません',
+                        'error_type': 'excel_not_installed'
+                    }
+                conv, fail = self._excel_to_pdf_macos_excel(excel_files, output_folder)
+                converted_files.extend(conv)
+                failed_files.extend(fail)
             else:
-                # 非Windowsでは「そのまま」出力は未サポート（報告のみ）
+                # その他プラットフォームは非対応
                 return {
                     'success': False,
-                    'error': 'この環境ではExcelをそのままPDF出力できません（Windows + Excel が必要）',
-                    'error_type': 'unsupported_platform_for_exact_export'
+                    'error': 'Excelがインストールされていません',
+                    'error_type': 'excel_not_installed'
                 }
-            
+
             # 結果の整理
-            result = {
+            result: Dict[str, Any] = {
                 'success': True,
                 'converted_files': converted_files,
                 'failed_files': failed_files,
@@ -621,14 +901,13 @@ class PDFConverter:
                 'total_validation_errors': len(validation_errors),
                 'output_folder': output_folder
             }
-            
-            # 全て失敗した場合
+
             if len(converted_files) == 0 and (len(failed_files) > 0 or len(validation_errors) > 0):
                 result['success'] = False
                 result['error'] = 'すべてのファイルの変換に失敗しました'
-            
+
             return result
-            
+
         except Exception as e:
             return {
                 'success': False,

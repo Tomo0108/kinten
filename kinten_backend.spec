@@ -6,6 +6,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
+        ('backend', 'backend'),  # backend一式を同梱
         ('templates', 'templates'),
         ('input', 'input'),
         ('output', 'output'),

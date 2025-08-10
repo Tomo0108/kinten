@@ -22,9 +22,23 @@ if (-not (Test-Path "dist")) {
     New-Item -ItemType Directory -Path "dist" -Force
 }
 
-# Copy frontend executable and dependencies to dist
+# Copy frontend executable and dependencies to dist (support two possible output paths)
 Write-Host "Copying frontend files to dist..." -ForegroundColor Yellow
-Copy-Item "frontend\build\windows\runner\Release\*" "dist\" -Recurse -Force
+$releasePaths = @(
+    "frontend\build\windows\runner\Release\*",
+    "frontend\build\windows\x64\runner\Release\*"
+)
+$copied = $false
+foreach ($rp in $releasePaths) {
+    if (Test-Path $rp) {
+        Copy-Item $rp "dist\" -Recurse -Force
+        $copied = $true
+        break
+    }
+}
+if (-not $copied) {
+    Write-Host "Warning: Release folder not found. Did the Flutter build succeed?" -ForegroundColor Red
+}
 
 # Clean up temporary build files
 Write-Host "Cleaning up temporary build files..." -ForegroundColor Yellow

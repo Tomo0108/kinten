@@ -4,15 +4,27 @@ echo ========================================
 echo Kinten Backend Build Start
 echo ========================================
 
-REM Activate virtual environment if not already active
+REM Activate virtual environment if available
 if not defined VIRTUAL_ENV (
-    echo Activating virtual environment...
-    call venv\Scripts\activate.bat
+    if exist venv\Scripts\activate.bat (
+        echo Activating virtual environment...
+        call venv\Scripts\activate.bat
+    ) else (
+        echo Virtual environment not found. Using system Python/pip.
+    )
 )
 
 REM Install dependencies
 echo Installing dependencies...
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+REM Ensure PyInstaller is available
+where pyinstaller >nul 2>&1
+if errorlevel 1 (
+    echo PyInstaller not found. Installing...
+    python -m pip install pyinstaller
+)
 
 REM Check data folders
 echo Checking data folders...
@@ -43,9 +55,7 @@ REM Create dist folder structure
 echo Creating dist folder structure...
 if not exist dist mkdir dist
 
-REM Copy backend executable to dist
-echo Copying backend executable to dist...
-copy dist\kinten_backend.exe dist\kinten_backend.exe >nul 2>&1
+REM No need to copy the executable onto itself
 
 REM Copy data folders to dist
 echo Copying data folders to dist...

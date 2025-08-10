@@ -30,17 +30,26 @@ if (Test-Path "venv\Scripts\Activate.ps1") {
     Write-Host "❌ Virtual environment not found" -ForegroundColor Red
 }
 
-# frontend.exeの確認
-Write-Host "`n4. frontend.exeの確認:" -ForegroundColor Yellow
-$frontendPath = "frontend\build\windows\x64\runner\Release\frontend.exe"
-if (Test-Path $frontendPath) {
-    Write-Host "✅ frontend.exe found:" -ForegroundColor Green
-    Write-Host "Location: $((Get-Item $frontendPath).FullName)" -ForegroundColor Cyan
-    Write-Host "Size: $((Get-Item $frontendPath).Length) bytes" -ForegroundColor Cyan
-    Write-Host "Last modified: $((Get-Item $frontendPath).LastWriteTime)" -ForegroundColor Cyan
-} else {
-    Write-Host "❌ frontend.exe not found" -ForegroundColor Red
-    Write-Host "Please run: cd frontend && flutter build windows" -ForegroundColor Red
+# kinten.exe の確認（Flutter Windows出力）
+Write-Host "`n4. kinten.exeの確認:" -ForegroundColor Yellow
+$frontendCandidates = @(
+    "frontend\build\windows\runner\Release\kinten.exe",
+    "frontend\build\windows\x64\runner\Release\kinten.exe"
+)
+$found = $false
+foreach ($path in $frontendCandidates) {
+    if (Test-Path $path) {
+        Write-Host "✅ kinten.exe found:" -ForegroundColor Green
+        Write-Host "Location: $((Get-Item $path).FullName)" -ForegroundColor Cyan
+        Write-Host "Size: $((Get-Item $path).Length) bytes" -ForegroundColor Cyan
+        Write-Host "Last modified: $((Get-Item $path).LastWriteTime)" -ForegroundColor Cyan
+        $found = $true
+        break
+    }
+}
+if (-not $found) {
+    Write-Host "❌ kinten.exe not found" -ForegroundColor Red
+    Write-Host "Please run: cd frontend && flutter build windows --release" -ForegroundColor Red
 }
 
 # 必要なファイルの確認
