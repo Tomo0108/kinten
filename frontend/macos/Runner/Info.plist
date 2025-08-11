@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Excelを自動操作してPDFを作成します。Excel制御を許可してください。</string>
 </dict>
 </plist>
