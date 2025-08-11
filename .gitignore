@@ -73,9 +73,11 @@ flutter.zip
 output/*/
 !output/.gitkeep
 
-# Distribution files (keep the structure but ignore generated files)
-dist/*/
+# Distribution/Package artifacts (ignore generated artifacts; keep placeholders)
+dist/**
 !dist/.gitkeep
+package/**
+!package/.gitkeep
 
 # Test files
 test_output.xlsx
