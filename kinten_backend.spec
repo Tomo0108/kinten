@@ -5,7 +5,12 @@ a = Analysis(
     ['backend\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('backend', 'backend'),  # backend一式を同梱
+        ('templates', 'templates'),
+        ('input', 'input'),
+        ('output', 'output'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

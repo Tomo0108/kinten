@@ -12,7 +12,19 @@ import traceback
 from pathlib import Path
 
 # バックエンドモジュールをインポート
-from main_processor import KintenProcessor
+# KintenProcessor のインポートを堅牢化
+try:
+    # 1) 同一ディレクトリ
+    from main_processor import KintenProcessor  # type: ignore
+except Exception:
+    try:
+        # 2) パッケージ形式（PyInstallerやパッケージ実行時）
+        from backend.main_processor import KintenProcessor  # type: ignore
+    except Exception:
+        # 3) 明示的に現在ファイルのディレクトリをパスに追加して再試行
+        import os, sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from main_processor import KintenProcessor  # type: ignore
 
 def main():
     """メイン処理関数"""

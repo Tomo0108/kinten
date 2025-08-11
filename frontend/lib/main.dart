@@ -1,13 +1,41 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'screens/home_screen.dart';
+import 'screens/home_screen_fixed.dart';
+
+void _ignoreSigPipe() {
+  try {
+    // macOS / Linux: SIGPIPE を無視して異常終了を防止
+    ProcessSignal.sigpipe.watch().listen((_) {});
+  } catch (_) {
+    // 非対応環境では無視
+  }
+}
 
 void main() {
-  runApp(
-    const ProviderScope(
-      child: KintenApp(),
-    ),
-  );
+  _ignoreSigPipe();
+  if (kReleaseMode) {
+    runZonedGuarded(() {
+      runApp(
+        const ProviderScope(
+          child: KintenApp(),
+        ),
+      );
+    }, (error, stack) {
+      // releaseでは未捕捉例外で落ちないようにする
+    }, zoneSpecification: ZoneSpecification(
+      // print抑制（パイプへの書き込みを避ける）
+      print: (self, parent, zone, line) {},
+    ));
+  } else {
+    runApp(
+      const ProviderScope(
+        child: KintenApp(),
+      ),
+    );
+  }
 }
 
 class KintenApp extends StatelessWidget {

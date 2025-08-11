@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 CSV処理機能
 freee勤怠CSVを読み込み、整形する
@@ -32,15 +34,59 @@ class CSVProcessor:
             処理結果辞書
         """
         try:
-            # CSVファイル読み込み
-            self.df = pd.read_csv(file_path, encoding='utf-8')
-            
+            # 文字コード判定のフォールバック
+            encodings_to_try = [
+                'utf-8',
+                'utf-8-sig',
+                'cp932',
+                'shift_jis',
+                'iso-2022-jp',
+                'latin-1',
+            ]
+            last_error: Optional[Exception] = None
+            df: Optional[pd.DataFrame] = None
+            for enc in encodings_to_try:
+                try:
+                    df = pd.read_csv(file_path, encoding=enc)
+                    # 読めたら採用
+                    break
+                except Exception as ee:
+                    last_error = ee
+                    continue
+            if df is None:
+                raise last_error if last_error is not None else Exception('CSVの読み込みに失敗しました')
+
+            # 列名を正規化（前後空白除去）
+            df.columns = [str(c).strip() for c in df.columns]
+
+            # 列名の同義語マッピングを適用
+            synonym_mapping = {
+                # 時刻系: すべてパイプライン標準の 始業時刻1 / 終業時刻1 に寄せる
+                '出勤時刻': '始業時刻1',
+                '始業時刻': '始業時刻1',
+                '開始時刻': '始業時刻1',
+                '開始時間': '始業時刻1',
+                '退勤時刻': '終業時刻1',
+                '終業時刻': '終業時刻1',
+                '終了時刻': '終業時刻1',
+                '終了時間': '終業時刻1',
+                # メモ系
+                '備考': '勤怠メモ',
+                'メモ': '勤怠メモ',
+            }
+            for old_col, new_col in synonym_mapping.items():
+                if old_col in df.columns and new_col not in df.columns:
+                    df[new_col] = df[old_col]
+
+            # DataFrameを確定
+            self.df = df
+
             # CSVデータから年月を抽出
             self._extract_year_month_from_data()
-            
+
             # データ検証
-            validation_result = self._validate_csv_structure()
-            
+            _ = self._validate_csv_structure()
+
             return {
                 'success': True,
                 'employee_name': self.employee_name,
@@ -48,7 +94,7 @@ class CSVProcessor:
                 'row_count': len(self.df),
                 'columns': list(self.df.columns)
             }
-            
+
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
@@ -101,6 +147,19 @@ class CSVProcessor:
                                 month = parts[1].zfill(2)  # 1桁の月を2桁に
                                 self.year_month = f"{year}{month}"
                                 return
+
+                        # YYYY年MM月DD日 形式の処理
+                        elif ('年' in date_str) and ('月' in date_str):
+                            try:
+                                y_idx = date_str.index('年')
+                                m_idx = date_str.index('月')
+                                year = date_str[:y_idx]
+                                month = date_str[y_idx+1:m_idx].strip().zfill(2)
+                                if len(year) == 4 and month.isdigit():
+                                    self.year_month = f"{year}{month}"
+                                    return
+                            except Exception:
+                                pass
                 
                 # 日付が見つからない場合はデフォルト
                 self.year_month = "202501"

@@ -234,4 +234,43 @@ class FileService {
       return null;
     }
   }
+
+  // Excelファイルを選択（複数選択可）
+  static Future<List<String>?> pickExcelFiles() async {
+    try {
+      print('=== Excelファイル選択開始 ===');
+      
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xlsx', 'xls'],
+        allowMultiple: true,
+        withData: false,
+        withReadStream: false,
+        // プレビュー機能を無効化してパフォーマンスを向上
+        lockParentWindow: true,
+        // ファイル選択ダイアログのタイトル
+        dialogTitle: 'Excelファイルを選択（複数選択可）',
+      );
+      
+      print('FilePicker結果: ${result?.files.length ?? 0}個のファイル');
+      
+      if (result != null && result.files.isNotEmpty) {
+        final filePaths = result.files
+            .where((file) => file.path != null)
+            .map((file) => file.path!)
+            .toList();
+        
+        print('選択されたファイルパス: $filePaths');
+        return filePaths;
+      }
+      
+      print('ファイルが選択されませんでした');
+      return null;
+    } catch (e) {
+      print('Excelファイル選択エラー: $e');
+      return null;
+    } finally {
+      print('=== Excelファイル選択完了 ===');
+    }
+  }
 } 

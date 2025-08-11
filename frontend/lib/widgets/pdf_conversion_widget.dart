@@ -18,8 +18,6 @@ class PdfConversionWidget extends ConsumerStatefulWidget {
 }
 
 class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
-  final TextEditingController _inputFolderController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -29,16 +27,7 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
   }
 
   void _loadSettings() {
-    final appState = ref.read(appStateProvider);
-    if (appState.pdfInputFolder.isNotEmpty) {
-      _inputFolderController.text = appState.pdfInputFolder;
-    }
-  }
-
-  @override
-  void dispose() {
-    _inputFolderController.dispose();
-    super.dispose();
+    // 設定の読み込み（必要に応じて実装）
   }
 
   @override
@@ -56,16 +45,44 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
             // シンプルなヘッダー
             _buildSimpleHeader(isSmallScreen),
 
+            // 注意書き（Excelインストール必須）
+            Container(
+              margin: EdgeInsets.only(top: isSmallScreen ? 8 : 10),
+              padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDEDEC),
+                borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
+                border: Border.all(color: const Color(0xFFE74C3C).withOpacity(0.2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: const Color(0xFFE74C3C), size: isSmallScreen ? 18 : 20),
+                  SizedBox(width: isSmallScreen ? 8 : 10),
+                  Expanded(
+                    child: Text(
+                      '本機能を使用するには、Excel(デスクトップ版)のインストールが必要です。',
+                      style: TextStyle(
+                        color: const Color(0xFFE74C3C),
+                        fontSize: isSmallScreen ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             SizedBox(height: isSmallScreen ? 20 : 28),
 
-            // 入力フォルダ選択セクション（改善版）
-            _buildImprovedInputFolderSection(appState, isSmallScreen),
+            // Excelファイル選択セクション
+            _buildFileSelectionSection(appState, isSmallScreen),
 
             SizedBox(height: isSmallScreen ? 20 : 28),
 
-            // Excelファイルリストセクション
-            if (appState.pdfInputFolder.isNotEmpty) ...[
-              _buildExcelFileListSection(appState, isSmallScreen),
+            // 選択されたファイルリスト
+            if (appState.selectedExcelFiles.isNotEmpty) ...[
+              _buildSelectedFilesSection(appState, isSmallScreen),
               SizedBox(height: isSmallScreen ? 16 : 20),
             ],
 
@@ -115,7 +132,7 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
                   ),
                 ),
                 Text(
-                  'ExcelファイルをPDFに変換してください',
+                  'ExcelファイルをPDFに変換',
                   style: TextStyle(
                     fontSize: isSmallScreen ? 10 : 12,
                     color: const Color(0xFF7F8C8D),
@@ -130,17 +147,17 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
     );
   }
 
-  Widget _buildImprovedInputFolderSection(AppState appState, bool isSmallScreen) {
+  Widget _buildFileSelectionSection(AppState appState, bool isSmallScreen) {
     return Container(
       margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // セクションタイトル（FileSelectorデザインに統一）
+          // セクションタイトル
           Row(
             children: [
               Text(
-                '入力フォルダ',
+                'Excelファイル選択',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -167,66 +184,61 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
           ),
           const SizedBox(height: 8),
 
-          // フォルダ選択エリア（自動転記のFileSelectorデザインを参考）
+          // ファイル選択エリア
           NeumorphicContainer(
-            padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+            padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 選択されたフォルダパス表示
-                if (appState.pdfInputFolder.isNotEmpty) ...[
+                // 選択されたファイル数表示
+                if (appState.selectedExcelFiles.isNotEmpty) ...[
                   Container(
-                    padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+                    padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3498DB).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
+                      color: const Color(0xFF27AE60).withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
                       border: Border.all(
-                        color: const Color(0xFF3498DB).withOpacity(0.1),
+                        color: const Color(0xFF27AE60).withOpacity(0.1),
                       ),
                     ),
                     child: Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+                          padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF3498DB).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
+                            color: const Color(0xFF27AE60).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
                           ),
                           child: Icon(
-                            Icons.folder,
-                            color: const Color(0xFF3498DB),
-                            size: isSmallScreen ? 18 : 20,
+                            Icons.table_chart,
+                            color: const Color(0xFF27AE60),
+                            size: isSmallScreen ? 20 : 22,
                           ),
                         ),
-                        SizedBox(width: isSmallScreen ? 12 : 16),
+                        SizedBox(width: isSmallScreen ? 16 : 20),
                         Expanded(
                           child: Text(
-                            appState.pdfInputFolder,
+                            '${appState.selectedExcelFiles.length}個のファイルが選択されています',
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF2C3E50),
                               fontWeight: FontWeight.w500,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(height: isSmallScreen ? 12 : 16),
+                  SizedBox(height: isSmallScreen ? 16 : 20),
                 ],
                 
-                // フォルダ選択ボタン（FileSelectorデザインに統一）
+                // ファイル選択ボタン
                 NeumorphicButton(
                   onPressed: () async {
-                    final folder = await FileService.pickDirectory();
-                    if (folder != null) {
-                      setState(() {
-                        _inputFolderController.text = folder;
-                      });
-                      ref.read(appStateProvider.notifier).setPdfInputFolder(folder);
-                      // フォルダ内のExcelファイルを取得
-                      await ref.read(appStateProvider.notifier).getExcelFiles();
+                    final files = await FileService.pickExcelFiles();
+                    if (files != null && files.isNotEmpty) {
+                      // 既存のファイルに追加
+                      ref.read(appStateProvider.notifier).addExcelFiles(files);
                     }
                   },
                   width: double.infinity,
@@ -237,19 +249,19 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.folder_open,
+                        Icons.file_upload,
                         color: const Color(0xFF3498DB),
                         size: 20,
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        appState.pdfInputFolder.isEmpty ? 'フォルダを選択' : '変更',
-                        style: const TextStyle(
-                          color: Color(0xFF3498DB),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                                             Text(
+                         appState.selectedExcelFiles.isEmpty ? 'Excelファイルを選択（複数可）' : '追加選択',
+                         style: const TextStyle(
+                           color: Color(0xFF3498DB),
+                           fontSize: 16,
+                           fontWeight: FontWeight.w600,
+                         ),
+                       ),
                     ],
                   ),
                 ),
@@ -261,37 +273,21 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
     );
   }
 
-  Widget _buildExcelFileListSection(AppState appState, bool isSmallScreen) {
+  Widget _buildSelectedFilesSection(AppState appState, bool isSmallScreen) {
     return Container(
       margin: EdgeInsets.only(bottom: isSmallScreen ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // セクションタイトル（FileSelectorデザインに統一）
+          // セクションタイトル
           Row(
             children: [
               Text(
-                'Excelファイル一覧',
+                '選択されたファイル',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF2C3E50),
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => _showExcelListInfoDialog(context),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF27AE60).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: Color(0xFF27AE60),
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -305,7 +301,7 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${appState.excelFiles.length}',
+                  '${appState.selectedExcelFiles.length}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -316,214 +312,158 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
             ],
           ),
 
-          // ファイルリスト
-          if (appState.excelFiles.isNotEmpty) ...[
-            Container(
-              constraints: BoxConstraints(
-                maxHeight: isSmallScreen ? 200 : 250,
+          // ファイルリスト（複数ファイル表示用デザイン）
+          Container(
+            constraints: BoxConstraints(
+              maxHeight: isSmallScreen ? 300 : 350,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
+              border: Border.all(
+                color: const Color(0xFFBDC3C7),
+                width: 1,
               ),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
-                border: Border.all(
-                  color: const Color(0xFFBDC3C7),
-                  width: 1,
-                ),
-              ),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: appState.excelFiles.length,
-                itemBuilder: (context, index) {
-                  final file = appState.excelFiles[index];
-                  final fileName = file['name'] as String? ?? 'Unknown';
-                  final filePath = file['path'] as String? ?? '';
-                  final fileSize = file['size'] as int? ?? 0;
-                  final isSelected = appState.selectedFiles.contains(filePath);
+            ),
+            child: appState.selectedExcelFiles.isEmpty
+                ? Container(
+                    padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.folder_open,
+                            color: const Color(0xFFBDC3C7),
+                            size: isSmallScreen ? 48 : 56,
+                          ),
+                          SizedBox(height: isSmallScreen ? 8 : 12),
+                          Text(
+                            'Excelファイルを選択してください',
+                            style: TextStyle(
+                              color: const Color(0xFF95A5A6),
+                              fontSize: isSmallScreen ? 14 : 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+                    itemCount: appState.selectedExcelFiles.length,
+                    itemBuilder: (context, index) {
+                      final filePath = appState.selectedExcelFiles[index];
+                      final fileName = filePath.split(RegExp(r'[/\\]')).last;
 
-                  return Container(
-                    margin: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 8 : 12,
-                      vertical: isSmallScreen ? 4 : 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected 
-                          ? const Color(0xFFE8F5E8) 
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
-                      border: isSelected 
-                          ? Border.all(
-                              color: const Color(0xFF27AE60),
-                              width: 2,
-                            )
-                          : null,
-                    ),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 8 : 12,
-                        vertical: isSmallScreen ? 4 : 6,
-                      ),
-                      leading: Icon(
-                        Icons.table_chart,
-                        color: isSelected 
-                            ? const Color(0xFF27AE60)
-                            : const Color(0xFF95A5A6),
-                        size: isSmallScreen ? 20 : 24,
-                      ),
-                      title: Text(
-                        fileName,
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 14 : 16,
-                          fontWeight: isSelected 
-                              ? FontWeight.w600 
-                              : FontWeight.normal,
-                          color: isSelected 
-                              ? const Color(0xFF27AE60)
-                              : const Color(0xFF2C3E50),
+                      return Container(
+                        margin: EdgeInsets.only(bottom: isSmallScreen ? 6 : 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8F9FA),
+                          borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
+                          border: Border.all(
+                            color: const Color(0xFFE9ECEF),
+                            width: 1,
+                          ),
                         ),
-                      ),
-                      subtitle: Text(
-                        _formatFileSize(fileSize),
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 12 : 14,
-                          color: const Color(0xFF95A5A6),
-                        ),
-                      ),
-                      trailing: isSelected 
-                          ? Icon(
-                              Icons.check_circle,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 12 : 16,
+                            vertical: isSmallScreen ? 8 : 10,
+                          ),
+                          leading: Container(
+                            padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF27AE60).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
+                            ),
+                            child: Icon(
+                              Icons.table_chart,
                               color: const Color(0xFF27AE60),
+                              size: isSmallScreen ? 18 : 20,
+                            ),
+                          ),
+                          title: Text(
+                            fileName,
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 14 : 16,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF2C3E50),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(
+                              Icons.remove_circle_outline,
+                              color: const Color(0xFFE74C3C),
                               size: isSmallScreen ? 20 : 24,
-                            )
-                          : null,
-                      onTap: () {
-                        ref.read(appStateProvider.notifier).toggleFileSelection(filePath);
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            SizedBox(height: isSmallScreen ? 12 : 16),
-
-            // 選択操作ボタン
-            Row(
-              children: [
-                Expanded(
-                  child: NeumorphicButton(
-                    onPressed: appState.excelFiles.isNotEmpty
-                        ? () {
-                            ref.read(appStateProvider.notifier).selectAllExcelFiles();
-                          }
-                        : null,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 12 : 16,
-                        vertical: isSmallScreen ? 8 : 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: appState.excelFiles.isNotEmpty
-                            ? const Color(0xFF3498DB)
-                            : const Color(0xFFBDC3C7),
-                        borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.select_all,
-                            color: Colors.white,
-                            size: isSmallScreen ? 16 : 18,
-                          ),
-                          SizedBox(width: isSmallScreen ? 6 : 8),
-                          Text(
-                            '全選択',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: isSmallScreen ? 14 : 16,
-                              fontWeight: FontWeight.w600,
                             ),
+                            onPressed: () {
+                              ref.read(appStateProvider.notifier).removeExcelFile(filePath);
+                            },
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-                SizedBox(width: isSmallScreen ? 8 : 12),
-                Expanded(
-                  child: NeumorphicButton(
-                    onPressed: appState.selectedFiles.isNotEmpty
-                        ? () {
-                            ref.read(appStateProvider.notifier).deselectAllExcelFiles();
-                          }
-                        : null,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 12 : 16,
-                        vertical: isSmallScreen ? 8 : 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: appState.selectedFiles.isNotEmpty
-                            ? const Color(0xFFE74C3C)
-                            : const Color(0xFFBDC3C7),
-                        borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.clear_all,
-                            color: Colors.white,
-                            size: isSmallScreen ? 16 : 18,
-                          ),
-                          SizedBox(width: isSmallScreen ? 6 : 8),
-                          Text(
-                            '全解除',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: isSmallScreen ? 14 : 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ] else ...[
-            Container(
-              padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
-                borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
-                border: Border.all(
-                  color: const Color(0xFFBDC3C7),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: const Color(0xFF95A5A6),
-                    size: isSmallScreen ? 18 : 20,
-                  ),
-                  SizedBox(width: isSmallScreen ? 8 : 10),
-                  Expanded(
-                    child: Text(
-                      'フォルダ内にExcelファイルが見つかりませんでした',
-                      style: TextStyle(
-                        color: const Color(0xFF95A5A6),
-                        fontSize: isSmallScreen ? 14 : 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
+
+          SizedBox(height: isSmallScreen ? 12 : 16),
+
+                     // リセットボタン
+           if (appState.selectedExcelFiles.isNotEmpty)
+             Container(
+               width: double.infinity,
+               height: isSmallScreen ? 44 : 48,
+               decoration: BoxDecoration(
+                 color: const Color(0xFF95A5A6),
+                 borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
+                 boxShadow: [
+                   BoxShadow(
+                     color: const Color(0xFF95A5A6).withOpacity(0.3),
+                     blurRadius: isSmallScreen ? 8 : 10,
+                     offset: Offset(0, isSmallScreen ? 4 : 5),
+                   ),
+                 ],
+               ),
+               child: Material(
+                 color: Colors.transparent,
+                 child: InkWell(
+                   onTap: () {
+                     ref.read(appStateProvider.notifier).clearSelectedExcelFiles();
+                   },
+                   borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
+                   child: Container(
+                     padding: EdgeInsets.symmetric(
+                       horizontal: isSmallScreen ? 16 : 20,
+                       vertical: isSmallScreen ? 10 : 12,
+                     ),
+                     child: Row(
+                       mainAxisAlignment: MainAxisAlignment.center,
+                       children: [
+                         Icon(
+                           Icons.refresh,
+                           color: Colors.white,
+                           size: isSmallScreen ? 18 : 20,
+                         ),
+                         SizedBox(width: isSmallScreen ? 8 : 10),
+                         Text(
+                           'リセット',
+                           style: TextStyle(
+                             color: Colors.white,
+                             fontSize: isSmallScreen ? 15 : 17,
+                             fontWeight: FontWeight.w600,
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                 ),
+               ),
+             ),
         ],
       ),
     );
@@ -602,19 +542,22 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
             color: Color(0xFF2C3E50),
           ),
         ),
-        content: const Text(
-          'ExcelファイルをPDFに変換する機能です。\n\n'
-          '1. 入力フォルダを選択してください\n'
-          '2. フォルダ内のExcelファイルが一覧表示されます\n'
-          '3. 変換ボタンを押すとPDFファイルが生成されます\n\n'
-          '対応形式：Excel (.xlsx, .xls)\n'
-          '出力形式：PDF',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF34495E),
-            height: 1.5,
-          ),
-        ),
+                 content: const Text(
+           'ExcelファイルをPDFに変換する機能です。\n\n'
+           '1. Excelファイルを選択してください（複数選択可）\n'
+           '   - Ctrl+クリック：個別ファイル選択\n'
+           '   - Shift+クリック：範囲選択\n'
+           '   - Ctrl+A：全選択\n'
+           '2. 変換ボタンを押すとPDFファイルが生成されます\n'
+           '3. 変換されたPDFファイルは作業月フォルダに保存されます\n\n'
+           '対応形式：Excel (.xlsx, .xls)\n'
+           '出力形式：PDF',
+           style: TextStyle(
+             fontSize: 14,
+             color: Color(0xFF34495E),
+             height: 1.5,
+           ),
+         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -629,51 +572,5 @@ class _PdfConversionWidgetState extends ConsumerState<PdfConversionWidget> {
         ],
       ),
     );
-  }
-
-  void _showExcelListInfoDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'Excelファイル一覧について',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF2C3E50),
-          ),
-        ),
-        content: const Text(
-          '選択されたフォルダ内のExcelファイルが一覧表示されます。\n\n'
-          '対応形式：.xlsx, .xls\n'
-          'ファイルが見つからない場合は、別のフォルダを選択してください。',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF34495E),
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'OK',
-              style: TextStyle(
-                color: Color(0xFF27AE60),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes == 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    final i = (bytes / k).floor();
-    return '${(bytes / k).toStringAsFixed(1)} ${sizes[i]}';
   }
 } 
