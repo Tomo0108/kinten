@@ -691,9 +691,9 @@ import locale
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-print(f"Python version: {sys.version}")
-print(f"Current working directory: {os.getcwd()}")
-print(f"Project root: {r"$projectRoot"}")
+print("Python version:", sys.version)
+print("Current working directory:", os.getcwd())
+print("Project root:", r"$projectRoot")
 
 # ファイル存在チェック（文字化け対策）
 csv_path = "$csvPath"
@@ -1026,7 +1026,7 @@ import json
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-project_root = "$normalizedProjectRoot"
+project_root = r"$normalizedProjectRoot"
 backend_path = os.path.join(project_root, "backend")
 sys.path.insert(0, backend_path)
 
