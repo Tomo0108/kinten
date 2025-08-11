@@ -20,27 +20,64 @@ class SettingsService {
   
   // デフォルトテンプレートパスを動的に解決
   static Future<String> get _defaultTemplatePath async {
-    // プロジェクトルートを取得
+    // プロジェクトルートを取得（Windows/macOS/開発・本番ビルドの両方に対応）
     final currentDir = Directory.current.path;
-    String projectRoot;
-    
-    // Flutterアプリがビルドされて実行される場合のパス処理
-    if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
-      // Releaseディレクトリから4階層上に移動してプロジェクトルートを取得
-      final releaseDir = Directory(currentDir);
-      final runnerDir = releaseDir.parent;
-      final x64Dir = runnerDir.parent;
-      final windowsDir = x64Dir.parent;
-      final buildDir = windowsDir.parent;
-      final frontendDir = buildDir.parent;
-      projectRoot = frontendDir.parent.path;
-    } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
-      projectRoot = Directory(currentDir).parent.path;
-    } else {
-      projectRoot = currentDir;
+    String projectRoot = currentDir;
+
+    try {
+      if (currentDir.contains('frontend${path.separator}build${path.separator}windows${path.separator}x64${path.separator}runner${path.separator}Release')) {
+        // Windows Releaseディレクトリからプロジェクトルートを取得
+        final releaseDir = Directory(currentDir);
+        final runnerDir = releaseDir.parent;
+        final x64Dir = runnerDir.parent;
+        final windowsDir = x64Dir.parent;
+        final buildDir = windowsDir.parent;
+        final frontendDir = buildDir.parent;
+        projectRoot = frontendDir.parent.path;
+      } else if (currentDir.contains('frontend${path.separator}build${path.separator}macos${path.separator}Build${path.separator}Products')) {
+        // macOSビルド出力ディレクトリからプロジェクトルートを取得（開発時）
+        final productsDir = Directory(currentDir);
+        final buildDir = productsDir.parent;   // Build
+        final macosDir = buildDir.parent;      // macos
+        final buildRoot = macosDir.parent;     // build
+        final frontendDir = buildRoot.parent;  // frontend
+        projectRoot = frontendDir.parent.path; // プロジェクトルート
+      } else if (Platform.isMacOS && (
+        currentDir.contains('kinten.app${path.separator}Contents${path.separator}MacOS') ||
+        File(Platform.resolvedExecutable).parent.path.contains('kinten.app${path.separator}Contents${path.separator}MacOS')
+      )) {
+        // アプリバンドル内からの実行（配布時）: 実行バイナリの位置から dist を特定
+        final exeDir = File(Platform.resolvedExecutable).parent.path;
+        var up = Directory(exeDir);
+        for (int i = 0; i < 4; i++) { up = up.parent; }
+        final distCandidate = up.path; // .../dist
+        // dist/backend/main.py があれば dist をルートとして扱う
+        final distBackendMain = File(path.join(distCandidate, 'backend', 'main.py'));
+        if (distBackendMain.existsSync()) {
+          projectRoot = distCandidate;
+        } else {
+          // フォールバック: さらに1階層上（リポジトリ直下想定）
+          final repoCandidate = Directory(distCandidate).parent.path;
+          final repoBackendMain = File(path.join(repoCandidate, 'backend', 'main.py'));
+          if (repoBackendMain.existsSync()) {
+            projectRoot = repoCandidate;
+          }
+        }
+      } else if (currentDir.endsWith('frontend') || currentDir.endsWith('frontend${path.separator}')) {
+        projectRoot = Directory(currentDir).parent.path;
+      }
+    } catch (_) {
+      // 失敗時は currentDir を継続利用
     }
     
-    // デフォルト: プロジェクト直下の templates
+    // デフォルト: プロジェクト直下の templates（配布時は dist/templates を優先チェック）
+    final distPrimary = path.join(projectRoot, 'dist', 'templates', '勤怠表雛形_2025年版.xlsx');
+    try {
+      if (await File(distPrimary).exists()) {
+        return distPrimary;
+      }
+    } catch (_) {}
+
     final primary = path.join(projectRoot, 'templates', '勤怠表雛形_2025年版.xlsx');
     try {
       if (await File(primary).exists()) {
@@ -48,7 +85,7 @@ class SettingsService {
       }
     } catch (_) {}
     // フォールバック: dist/templates 配下
-    final fallback = path.join(projectRoot, 'dist', 'templates', '勤怠表雛形_2025年版.xlsx');
+    final fallback = distPrimary;
     try {
       if (await File(fallback).exists()) {
         return fallback;
