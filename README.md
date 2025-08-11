@@ -30,25 +30,26 @@ CSVからExcelへの転記と、ExcelからPDFへの変換を行います。Wind
 - Gatekeeperでブロックされる場合は右クリック→開く
 
 ### Windows
-1. Windows端末で PowerShell を開き、`scripts/package_windows.ps1` を実行して `package/kinten_windows.zip` を作成
-2. 展開後、`kinten/kinten.exe` を起動
-3. `kinten/input` にCSVを配置、雛形は `kinten/templates`、出力は `kinten/output`
+1. `kinten_windows_1.0.0.zip` をダウンロードして展開
+2. 展開フォルダ内の `kinten.exe` を起動
+3. `input` にCSVを配置、雛形は `templates`、出力は `output`（いずれも展開フォルダ直下）
 
 注意
 - PDF変換にはMicrosoft Excel（デスクトップ版）が必要
 - バックエンドは `kinten_backend.exe` 同梱のためPythonは不要
 
 ## 配布パッケージ構成
+
+Windows（`kinten_windows_1.0.0.zip`）
 ```
-kinten.zip
-└─ kinten/
-   ├─ kinten.app（macOS）または kinten.exe（Windows）
-   ├─ kinten_backend（macOS）/ kinten_backend.exe（Windows）
-   ├─ backend/
+└─ （展開先）/
+   ├─ kinten.exe
+   ├─ kinten_backend.exe
+   ├─ flutter_windows.dll
+   ├─ permission_handler_windows_plugin.dll
    ├─ templates/
    ├─ input/（空）
-   ├─ output/（空）
-   └─ requirements.txt
+   └─ output/（空）
 ```
 
 ## ファイル仕様
@@ -64,8 +65,7 @@ kinten/
 ├─ templates/              # Excel雛形
 ├─ input/                  # 入力CSV（空で配布）
 ├─ output/                 # 出力先（空で配布）
-├─ scripts/                # 同期/パッケージングスクリプト
-└─ package/                # 生成された配布ZIP置き場（Git管理外）
+└─ packages/               # 生成された配布ZIP置き場（Git管理外）
 ```
 
 ## 開発者向け（macOS）
@@ -84,10 +84,15 @@ kinten/
   ```
 
 ## 開発者向け（Windows）
-- 配布ZIPの作成（Flutterリリースビルド + PyInstaller同梱）
+- ビルド（バックエンド/フロントエンド）
   ```powershell
-  scripts\package_windows.ps1
+  .\build_all.ps1
   ```
+- 配布ZIPの作成（ローカルはタイムスタンプ付ZIPを生成）
+  ```powershell
+  .\create_distribution.bat
+  ```
+- 公式リリースでは ZIP 名を `kinten_windows_1.0.0.zip` に統一
 
 ## 既知の要件・制約
 - PDF変換:
@@ -99,7 +104,7 @@ kinten/
   - macOS: `~/Library/Logs/kinten.log`
 
 ## リポジトリ運用
-- 生成物はGit管理外（`.gitignore`にて `dist/**`, `package/**` を除外）
+- 生成物はGit管理外（`.gitignore`にて `dist/**`, `packages/**` を除外）
 - 個人情報を含むCSVや出力はコミットしない
 
 
