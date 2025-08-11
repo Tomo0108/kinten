@@ -31,12 +31,12 @@ CSVからExcelへの転記と、ExcelからPDFへの変換を行います。Wind
 
 ### Windows
 1. `kinten_windows_1.0.0.zip` をダウンロードして展開
-2. 展開フォルダ内の `kinten.exe` を起動
+2. 展開フォルダ内の `kinten.exe` を起動（バックエンドは `backend/kinten_backend.exe` を自動検出）
 3. `input` にCSVを配置、雛形は `templates`、出力は `output`（いずれも展開フォルダ直下）
 
 注意
 - PDF変換にはMicrosoft Excel（デスクトップ版）が必要
-- バックエンドは `kinten_backend.exe` 同梱のためPythonは不要
+- バックエンドは `backend/kinten_backend.exe` 同梱のためPythonは不要
 
 ## 配布パッケージ構成
 
@@ -44,7 +44,8 @@ Windows（`kinten_windows_1.0.0.zip`）
 ```
 └─ （展開先）/
    ├─ kinten.exe
-   ├─ kinten_backend.exe
+   ├─ backend/
+   │   └─ kinten_backend.exe
    ├─ flutter_windows.dll
    ├─ permission_handler_windows_plugin.dll
    ├─ templates/
