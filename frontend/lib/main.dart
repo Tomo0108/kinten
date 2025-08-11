@@ -14,8 +14,33 @@ void _ignoreSigPipe() {
   }
 }
 
+void _ensureRequiredDirectories() {
+  try {
+    final Directory currentDir = Directory.current;
+    final Directory inputDir = Directory('${currentDir.path}${Platform.pathSeparator}input');
+    final Directory outputDir = Directory('${currentDir.path}${Platform.pathSeparator}output');
+    final Directory templatesDir = Directory('${currentDir.path}${Platform.pathSeparator}templates');
+
+    if (!inputDir.existsSync()) {
+      inputDir.createSync(recursive: true);
+    }
+    if (!outputDir.existsSync()) {
+      outputDir.createSync(recursive: true);
+    }
+    if (!templatesDir.existsSync()) {
+      templatesDir.createSync(recursive: true);
+    }
+
+    // 雛形ファイルは配布ZIPに同梱される想定。
+    // ここではディレクトリの存在のみ保証する。
+  } catch (_) {
+    // 起動妨げないため握りつぶす
+  }
+}
+
 void main() {
   _ignoreSigPipe();
+  _ensureRequiredDirectories();
   if (kReleaseMode) {
     runZonedGuarded(() {
       runApp(
