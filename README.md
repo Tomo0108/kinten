@@ -1,249 +1,105 @@
-# 📌 Kinten（勤転）
+# Kinten（勤転）
 
-**freee勤怠CSVをExcel勤怠表テンプレートへ自動転記するデスクトップアプリ**
+freee等の勤怠CSVを読み込み、Excel勤怠表テンプレートへ自動転記し、PDF出力にも対応するデスクトップアプリです。処理はすべてローカルで完結します。
 
-## 🎯 概要
+## 概要
+CSVからExcelへの転記と、ExcelからPDFへの変換を行います。Windows/macOSに対応しています。
 
-Kinten（勤転）は、freee等の勤怠管理システムからエクスポートしたCSVファイルを読み込み、指定のExcel勤怠表テンプレートへ自動転記し出力する**ローカル専用**のデスクトップアプリです。
+## 特徴
+- CSV → Excel 自動転記（テンプレート準拠）
+- Excel → PDF 変換（WindowsはExcel必須、macOSはExcel優先・フォールバックあり）
+- 起動時に`input`/`output`/`templates`を自動作成
+- データはすべてローカル処理
 
-## ✨ 特徴
+## 技術スタック
+- フロントエンド: Flutter（Riverpod）
+- バックエンド: Python（pandas, openpyxl, reportlab, xlwings ほか）
 
-- 🎨 **ニューモフィズムデザイン** - モダンで親しみやすいUI
-- 🔄 **ワンクリック変換** - CSV → Excel自動転記
-- 📊 **freee対応** - freeeの勤怠CSV形式に対応
-- 🖥️ **クロスプラットフォーム** - Windows/macOS対応
-- 🚀 **高速処理** - Pythonバックエンドによる効率的な処理
-- 🔒 **プライバシー重視** - ローカル処理で個人情報を保護
+## 対応環境
+- Windows 10/11
+- macOS 12以降
 
-## 🛠️ 技術スタック
+## 配布版の使い方
+### macOS
+1. `package/kinten.zip` を展開
+2. `kinten/kinten.app` を起動（初回のみExcel自動化の許可が必要）
+3. `kinten/input` にCSVを配置、雛形は `kinten/templates`、出力は `kinten/output`
 
-### フロントエンド
-- **Flutter** - デスクトップアプリ開発
-- **Riverpod** - 状態管理
-- **Material Design 3** - UIフレームワーク
+注意
+- Excelがない環境では簡易PDFにフォールバック（レイアウト再現は限定的）
+- Gatekeeperでブロックされる場合は右クリック→開く
 
-### バックエンド
-- **Python 3.13** - データ処理
-- **pandas** - CSVデータ処理
-- **openpyxl** - Excelファイル操作
+### Windows
+1. Windows端末で PowerShell を開き、`scripts/package_windows.ps1` を実行して `package/kinten_windows.zip` を作成
+2. 展開後、`kinten/kinten.exe` を起動
+3. `kinten/input` にCSVを配置、雛形は `kinten/templates`、出力は `kinten/output`
 
-## 📦 インストール
+注意
+- PDF変換にはMicrosoft Excel（デスクトップ版）が必要
+- バックエンドは `kinten_backend.exe` 同梱のためPythonは不要
 
-### 前提条件
-- Flutter SDK (3.0.0以上)
-- Python 3.13以上
-- Windows 10/11 または macOS
-
-### Flutterのインストール
-
-#### Windows
-```bash
-# 1. Flutterをダウンロード
-Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.24.5-stable.zip" -OutFile "flutter.zip"
-
-# 2. 展開
-Expand-Archive -Path "flutter.zip" -DestinationPath "C:\flutter" -Force
-
-# 3. PATHに追加
-[Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\flutter\bin", [EnvironmentVariableTarget]::User)
-
-# 4. 確認
-flutter --version
+## 配布パッケージ構成
+```
+kinten.zip
+└─ kinten/
+   ├─ kinten.app（macOS）または kinten.exe（Windows）
+   ├─ kinten_backend（macOS）/ kinten_backend.exe（Windows）
+   ├─ backend/
+   ├─ templates/
+   ├─ input/（空）
+   ├─ output/（空）
+   └─ requirements.txt
 ```
 
-#### macOS
-```bash
-# Homebrewを使用
-brew install flutter
+## ファイル仕様
+- 入力CSV名例: `勤怠詳細_従業員名_YYYY_MM.csv`
+- テンプレート: `templates/勤怠表雛形_2025年版.xlsx`
+- 出力Excel名例: `勤怠表_従業員名_YYYYMM.xlsx`
 
-# または手動インストール
-# https://docs.flutter.dev/get-started/install/macos
-```
-
-### セットアップ手順
-
-1. **リポジトリのクローン**
-   ```bash
-   git clone https://github.com/your-username/kinten.git
-   cd kinten
-   ```
-
-2. **Python環境のセットアップ**
-   ```bash
-   # 仮想環境の作成
-   py -m venv venv
-   
-   # 仮想環境のアクティベート
-   .\venv\Scripts\Activate.ps1  # Windows
-   source venv/bin/activate     # macOS
-   
-   # 依存関係のインストール
-   pip install -r requirements.txt
-   ```
-
-3. **Flutter依存関係のインストール**
-   ```bash
-   cd kinten
-   flutter pub get
-   ```
-
-## 🚀 使用方法
-
-### 1. Flutterのインストール確認
-```bash
-flutter --version
-```
-
-### 2. アプリの起動
-
-#### 開発モード
-```bash
-cd kinten
-flutter run -d windows  # Windows
-flutter run -d macos    # macOS
-```
-
-#### ビルド済みアプリの実行
-```bash
-# Windows
-.\kinten\build\windows\x64\runner\Release\kinten.exe
-
-# または、エクスプローラーで以下をダブルクリック
-# kinten\build\windows\x64\runner\Release\kinten.exe
-```
-
-### 3. ファイル選択
-1. **勤怠CSVファイル** - freeeからエクスポートしたCSVファイルを選択
-2. **Excelテンプレート** - 勤怠表テンプレートを選択
-3. **出力先フォルダ** - 変換後のExcelファイルの保存先を選択
-
-### 4. 変換実行
-「変換して保存」ボタンをクリックして処理を開始
-
-## 📁 ファイル形式
-
-### 入力CSVファイル
-- **ファイル名形式**: `勤怠詳細_従業員名_YYYY_MM.csv`
-- **必須列**: 日付, 始業時刻, 終業時刻, 勤怠種別, 総勤務時間
-
-### Excelテンプレート
-- **初期シート名**: 「勤務表」
-- **セル配置**:
-  - G6: 従業員名
-  - F5: 年
-  - H5: 月
-  - A11以降: 勤怠データ
-
-### 出力ファイル
-- **ファイル名**: `勤怠表_従業員名_YYYYMM.xlsx`
-- **シート名**: `勤怠表_YYYYMM`
-
-## 📂 プロジェクト構造
-
+## プロジェクト構成（抜粋）
 ```
 kinten/
-├── .git/                    # Gitリポジトリ
-├── .history/                # エディタ履歴
-├── assets/                  # アセットファイル（.gitkeep）
-├── backend/                 # Pythonバックエンド
-│   ├── __init__.py
-│   ├── csv_processor.py     # CSV処理
-│   ├── excel_processor.py   # Excel処理
-│   ├── main_processor.py    # メイン処理
-│   └── create_sample_template.py
-├── docs/                    # ドキュメント
-│   └── README.md           # プロジェクトドキュメント
-├── kinten/                  # Flutterアプリ
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── providers/
-│   │   ├── screens/
-│   │   ├── services/
-│   │   └── widgets/
-│   ├── pubspec.yaml
-│   └── README.md
-├── input/                   # 入力ファイル（.gitkeep）
-├── output/                  # 出力ファイル
-│   ├── .gitkeep
-│   └── 2025_06/            # 月別出力フォルダ
-├── templates/               # テンプレートファイル
-│   └── 勤怠表雛形_2025年版.xlsx
-├── venv/                    # Python仮想環境
-├── .gitignore              # Git除外設定
-├── check_environment.ps1   # 環境チェックスクリプト
-├── kinten_要件.md          # 要件定義
-├── pyrightconfig.json      # Python設定
-├── README.md               # このファイル
-├── requirements.txt        # Python依存関係
-├── タスクリスト.md         # 開発タスク
-└── デザイン要件.md         # デザイン要件
+├─ backend/                # Pythonバックエンド
+├─ frontend/               # Flutterフロントエンド
+├─ templates/              # Excel雛形
+├─ input/                  # 入力CSV（空で配布）
+├─ output/                 # 出力先（空で配布）
+├─ scripts/                # 同期/パッケージングスクリプト
+└─ package/                # 生成された配布ZIP置き場（Git管理外）
 ```
 
-## 🔒 プライバシーとセキュリティ
+## 開発者向け（macOS）
+- フロントエンドのビルド
+  ```bash
+  cd frontend
+  flutter build macos --release
+  ```
+- distへの同期
+  ```bash
+  bash scripts/sync_dist_macos.sh
+  ```
+- 配布ZIPの作成（Python不要のバックエンド同梱）
+  ```bash
+  bash scripts/package_macos.sh
+  ```
 
-- **ローカル処理**: すべてのデータ処理はローカルで実行
-- **個人情報保護**: 個人情報を含むファイルは`.gitignore`で除外
-- **データ保持**: 処理後のデータは指定された出力フォルダにのみ保存
+## 開発者向け（Windows）
+- 配布ZIPの作成（Flutterリリースビルド + PyInstaller同梱）
+  ```powershell
+  scripts\package_windows.ps1
+  ```
 
-## 🧪 テスト
+## 既知の要件・制約
+- PDF変換:
+  - Windows: Microsoft Excel 必須
+  - macOS: Excel優先（xlwings）、Excel非導入時は簡易PDFにフォールバック
+- 初回起動時:
+  - macOS: 「自動化（Excel制御）」の許可が必要
+- ログ:
+  - macOS: `~/Library/Logs/kinten.log`
 
-### Pythonバックエンドテスト
-```bash
-cd backend
-python -m pytest tests/
-```
+## リポジトリ運用
+- 生成物はGit管理外（`.gitignore`にて `dist/**`, `package/**` を除外）
+- 個人情報を含むCSVや出力はコミットしない
 
-### Flutterテスト
-```bash
-cd kinten
-flutter test
-```
 
-## 📝 開発
-
-### 開発環境のセットアップ
-1. Flutter SDKのインストール
-2. Python仮想環境の作成
-3. 依存関係のインストール
-4. IDE設定（VS Code推奨）
-
-### 環境チェック
-```bash
-# 環境チェックスクリプトの実行
-.\check_environment.ps1
-```
-
-## 🤝 貢献
-
-1. このリポジトリをフォーク
-2. 機能ブランチを作成 (`git checkout -b feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'Add amazing feature'`)
-4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
-5. プルリクエストを作成
-
-## 📄 ライセンス
-
-このプロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE](LICENSE)ファイルを参照してください。
-
-## 🆘 サポート
-
-問題や質問がある場合は、[Issues](https://github.com/your-username/kinten/issues)で報告してください。
-
-## 📈 ロードマップ
-
-- [ ] 複数ファイル一括処理
-- [ ] カスタムテンプレート対応
-- [ ] データ検証機能強化
-- [ ] プラグイン機能
-- [ ] クラウド同期機能
-
-## 📋 関連ドキュメント
-
-- [要件定義](kinten_要件.md) - プロジェクトの要件
-- [デザイン要件](デザイン要件.md) - UI/UXデザイン仕様
-- [タスクリスト](タスクリスト.md) - 開発タスク一覧
-- [プロジェクトドキュメント](docs/README.md) - 詳細ドキュメント
-
----
-
-**Kinten（勤転）** - 勤怠データの転記を簡単に 🚀 
