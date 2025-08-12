@@ -593,29 +593,9 @@ class AppStateNotifier extends StateNotifier<AppState> {
             var upRepo = Directory(pkgCandidate).parent;
             final repoCandidate = upRepo.path;
             final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
-            if (repoBackend.existsSync()) {
-              projectRoot = repoCandidate;
-            } else {
-              // 代表的な配置先（App Translocation対策）
-              final home = Platform.environment['HOME'];
-              final candidates = <String>[
-                if (home != null && home.isNotEmpty) path.join(home, 'Downloads', 'kinten'),
-                if (home != null && home.isNotEmpty) path.join(home, 'Desktop', 'kinten'),
-                path.join('/', 'Applications', 'kinten'),
-              ];
-              String? found;
-              for (final c in candidates) {
-                try {
-                  if (File(path.join(c, 'backend', 'main.py')).existsSync()) {
-                    found = c;
-                    break;
-                  }
-                } catch (_) {}
-              }
-              projectRoot = found ?? pkgCandidate;
-            }
-            print('Project root (repo/pkg/candidate) from app bundle: $projectRoot');
-            await _logToFile('projectRoot from app bundle(repo/pkg/candidate)=' + projectRoot);
+            projectRoot = repoBackend.existsSync() ? repoCandidate : pkgCandidate;
+            print('Project root (repo or pkg fallback) from app bundle: $projectRoot');
+            await _logToFile('projectRoot from app bundle(repo/pkg)=' + projectRoot);
           }
           // 上位探索による最終確認
           final discovered = await _discoverProjectRootFrom(projectRoot);
@@ -920,28 +900,8 @@ except Exception as e:
             var upRepo = Directory(pkgCandidate).parent;
             final repoCandidate = upRepo.path;
             final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
-            if (repoBackend.existsSync()) {
-              projectRoot = repoCandidate;
-            } else {
-              // 代表的な配置先（App Translocation対策）
-              final home = Platform.environment['HOME'];
-              final candidates = <String>[
-                if (home != null && home.isNotEmpty) path.join(home, 'Downloads', 'kinten'),
-                if (home != null && home.isNotEmpty) path.join(home, 'Desktop', 'kinten'),
-                path.join('/', 'Applications', 'kinten'),
-              ];
-              String? found;
-              for (final c in candidates) {
-                try {
-                  if (File(path.join(c, 'backend', 'main.py')).existsSync()) {
-                    found = c;
-                    break;
-                  }
-                } catch (_) {}
-              }
-              projectRoot = found ?? pkgCandidate;
-            }
-            print('プロジェクトルート(repo/pkg/candidate)をアプリバンドルから解決: $projectRoot');
+            projectRoot = repoBackend.existsSync() ? repoCandidate : pkgCandidate;
+            print('プロジェクトルート(repoまたはpkg)をアプリバンドルから解決: $projectRoot');
           }
           final discovered = await _discoverProjectRootFrom(projectRoot);
           if (discovered != null) {
@@ -1124,10 +1084,6 @@ except Exception as e:
                 environment: env,
               );
         await _logToFile('PDF Python exit=${result.exitCode}');
-        if (result.exitCode != 0) {
-          await _logToFile('PDF stderr=' + (result.stderr.toString()));
-          await _logToFile('PDF stdout=' + (result.stdout.toString()));
-        }
         
         print('=== Pythonプロセス実行結果 ===');
         print('Exit code: ${result.exitCode}');
