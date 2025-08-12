@@ -46,6 +46,8 @@ echo "[pkg-mac] Copy backend/templates/input/output/requirements"
 rsync -a "$ROOT_DIR/backend" "$PKG_ROOT/"
 rsync -a "$ROOT_DIR/templates" "$PKG_ROOT/"
 mkdir -p "$PKG_ROOT/input" "$PKG_ROOT/output"
+# Copy sample CSVs into package/input if present
+cp -f "$ROOT_DIR"/input/*.csv "$PKG_ROOT/input/" 2>/dev/null || true
 cp -f "$ROOT_DIR/requirements.txt" "$PKG_ROOT/"
 
 # Optional: include prebuilt backend if exists
