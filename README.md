@@ -36,7 +36,7 @@ CSVからExcelへの転記と、ExcelからPDFへの変換を行います。Wind
 
 注意
 - PDF変換にはMicrosoft Excel（デスクトップ版）が必要
-- バックエンドは `kinten_backend.exe` 同梱のためPythonは不要
+- バックエンドは `kinten_backend.exe` 同梱のためPythonは不要（同時に `backend/` ソースも同梱され、フォールバックとして利用可能）
 
 ## 配布パッケージ構成
 ```
@@ -78,7 +78,7 @@ kinten/
   ```bash
   bash scripts/sync_dist_macos.sh
   ```
-- 配布ZIPの作成（Python不要のバックエンド同梱）
+- 配布ZIPの作成（Python不要のバックエンド同梱 or backendソース同梱）
   ```bash
   bash scripts/package_macos.sh
   ```

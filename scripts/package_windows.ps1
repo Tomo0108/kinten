@@ -81,19 +81,23 @@ if (Test-Path (Join-Path $DIST 'kinten_backend.exe')) {
   Copy-Item -Force (Join-Path $DIST 'kinten_backend.exe') (Join-Path $PKG_ROOT 'kinten_backend.exe')
 }
 
+# 5.1) バックエンドソース一式も同梱（FlutterからPython直呼びのフォールバック用）
+Write-Host "[pkg-win] Copy backend source folder"
+Copy-Item -Recurse -Force (Join-Path $ROOT 'backend') $PKG_ROOT
+ 
 # 6) テンプレート/入出力/requirements
 Write-Host "[pkg-win] Copy templates + create input/output"
 Copy-Item -Recurse -Force (Join-Path $ROOT 'templates') $PKG_ROOT
 New-Item -ItemType Directory -Force -Path (Join-Path $PKG_ROOT 'input') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $PKG_ROOT 'output') | Out-Null
 Copy-Item -Force (Join-Path $ROOT 'requirements.txt') $PKG_ROOT
-
+ 
 # 7) zip 作成
 Write-Host "[pkg-win] Create zip"
 New-Item -ItemType Directory -Force -Path $PKG_DIR | Out-Null
 $zipPath = Join-Path $PKG_DIR 'kinten_windows.zip'
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
 Compress-Archive -Path (Join-Path $PKG_ROOT '*') -DestinationPath $zipPath -Force
-
+ 
 Write-Host "[pkg-win] Done: $zipPath"
 
