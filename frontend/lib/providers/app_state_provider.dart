@@ -224,14 +224,20 @@ class AppStateNotifier extends StateNotifier<AppState> {
     return path.replaceAll('\\', '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
   }
 
-  // バックエンドexeのパスを解決（実行ディレクトリ優先 → dist 配下 → プロジェクトルート直下）
+  // バックエンドexeのパスを解決
+  // 優先順: 実行ディレクトリ/backend → 実行ディレクトリ直下 → projectRoot/dist/backend → projectRoot/dist → projectRoot/backend → projectRoot直下
   String? _resolveBackendExePath(String projectRoot) {
-    final cwdExe = path.join(Directory.current.path, 'kinten_backend.exe');
-    if (File(cwdExe).existsSync()) return cwdExe;
-    final distExe = path.join(projectRoot, 'dist', 'kinten_backend.exe');
-    if (File(distExe).existsSync()) return distExe;
-    final rootExe = path.join(projectRoot, 'kinten_backend.exe');
-    if (File(rootExe).existsSync()) return rootExe;
+    final List<String> candidates = [
+      path.join(Directory.current.path, 'backend', 'kinten_backend.exe'),
+      path.join(Directory.current.path, 'kinten_backend.exe'),
+      path.join(projectRoot, 'dist', 'backend', 'kinten_backend.exe'),
+      path.join(projectRoot, 'dist', 'kinten_backend.exe'),
+      path.join(projectRoot, 'backend', 'kinten_backend.exe'),
+      path.join(projectRoot, 'kinten_backend.exe'),
+    ];
+    for (final p in candidates) {
+      if (File(p).existsSync()) return p;
+    }
     return null;
   }
 
