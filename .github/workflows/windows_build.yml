@@ -50,19 +50,19 @@ jobs:
           name: kinten_windows
           path: package/kinten_windows.zip
 
-      - name: Move v1.0.0 tag to HEAD (force)
+      - name: Move v1.0.1 tag to HEAD (force)
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f v1.0.0
-          git push -f origin v1.0.0
+          git tag -f v1.0.1
+          git push -f origin v1.0.1
 
-      - name: Create or update GitHub Release for v1.0.0
+      - name: Create or update GitHub Release for v1.0.1
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: kinten v1.0.0
+          tag_name: v1.0.1
+          name: kinten v1.0.1
           files: package/kinten_windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
