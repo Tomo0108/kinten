@@ -50,19 +50,18 @@ jobs:
           name: kinten_windows
           path: package/kinten_windows.zip
 
-      - name: Move v1.0.1 tag to HEAD (force)
+      - name: Read app version from pubspec.yaml
         shell: pwsh
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f v1.0.1
-          git push -f origin v1.0.1
+          $m = Select-String -Path frontend/pubspec.yaml -Pattern '^version:\s*(.+)$'
+          if ($m) { $v = $m.Matches[0].Groups[1].Value.Trim() } else { $v = "0.0.0" }
+          echo "APP_VERSION=$v" >> $env:GITHUB_ENV
 
-      - name: Create or update GitHub Release for v1.0.1
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.1
-          name: kinten v1.0.1
+          tag_name: v${{ env.APP_VERSION }}
+          name: kinten v${{ env.APP_VERSION }}
           files: package/kinten_windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

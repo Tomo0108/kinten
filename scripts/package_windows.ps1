@@ -90,6 +90,16 @@ Write-Host "[pkg-win] Copy templates + create input/output"
 Copy-Item -Recurse -Force (Join-Path $ROOT 'templates') $PKG_ROOT
 New-Item -ItemType Directory -Force -Path (Join-Path $PKG_ROOT 'input') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $PKG_ROOT 'output') | Out-Null
+
+# Copy sample CSVs into package/input if exist in repo input
+$repoInputDir = Join-Path $ROOT 'input'
+$destInputDir = Join-Path $PKG_ROOT 'input'
+if (Test-Path $repoInputDir) {
+  Get-ChildItem -Path $repoInputDir -Filter *.csv -File -ErrorAction SilentlyContinue | ForEach-Object {
+    Copy-Item -Force $_.FullName $destInputDir
+  }
+}
+
 Copy-Item -Force (Join-Path $ROOT 'requirements.txt') $PKG_ROOT
  
 # 7) zip 作成
@@ -97,7 +107,8 @@ Write-Host "[pkg-win] Create zip"
 New-Item -ItemType Directory -Force -Path $PKG_DIR | Out-Null
 $zipPath = Join-Path $PKG_DIR 'kinten_windows.zip'
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-Compress-Archive -Path (Join-Path $PKG_ROOT '*') -DestinationPath $zipPath -Force
+# Include the top-level 'kinten' folder in the zip
+Compress-Archive -Path $PKG_ROOT -DestinationPath $zipPath -Force
  
 Write-Host "[pkg-win] Done: $zipPath"
 
