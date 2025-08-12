@@ -218,12 +218,10 @@ class AppStateNotifier extends StateNotifier<AppState> {
     return path.replaceAll('\\', '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
   }
 
-  // バックエンドexeのパスを解決（実行ディレクトリ優先 → dist 配下 → プロジェクトルート直下）
+  // バックエンドexeのパスを解決（実行ディレクトリ優先 → プロジェクトルート直下）
   String? _resolveBackendExePath(String projectRoot) {
     final cwdExe = path.join(Directory.current.path, 'kinten_backend.exe');
     if (File(cwdExe).existsSync()) return cwdExe;
-    final distExe = path.join(projectRoot, 'dist', 'kinten_backend.exe');
-    if (File(distExe).existsSync()) return distExe;
     final rootExe = path.join(projectRoot, 'kinten_backend.exe');
     if (File(rootExe).existsSync()) return rootExe;
     return null;
@@ -903,7 +901,7 @@ except Exception as e:
             final repoCandidate = upRepo.path;
             final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
             projectRoot = repoBackend.existsSync() ? repoCandidate : pkgCandidate;
-            print('プロジェクトルート(repoまたはdist)をアプリバンドルから解決: $projectRoot');
+            print('プロジェクトルート(repoまたはpkg)をアプリバンドルから解決: $projectRoot');
           }
           final discovered = await _discoverProjectRootFrom(projectRoot);
           if (discovered != null) {
