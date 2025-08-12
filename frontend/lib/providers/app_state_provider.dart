@@ -224,18 +224,58 @@ class AppStateNotifier extends StateNotifier<AppState> {
     return path.replaceAll('\\', '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
   }
 
-  // バックエンドexeのパスを解決
+  // バックエンド実行ファイルのパスを解決
+  // Windows: kinten_backend.exe（Python不要）
+  // macOS:  kinten_backend     （Python不要）
   // 優先順: 実行ディレクトリ/backend → 実行ディレクトリ直下 → projectRoot/dist/backend → projectRoot/dist → projectRoot/backend → projectRoot直下
+  // さらにmacOSでは、アプリバンドル（kinten.app/Contents/MacOS）位置から 3 階層上（kinten/）および 4 階層上（dist/）も探索
   String? _resolveBackendExePath(String projectRoot) {
-    final List<String> candidates = [
-      path.join(Directory.current.path, 'backend', 'kinten_backend.exe'),
-      path.join(Directory.current.path, 'kinten_backend.exe'),
-      path.join(projectRoot, 'dist', 'backend', 'kinten_backend.exe'),
-      path.join(projectRoot, 'dist', 'kinten_backend.exe'),
-      path.join(projectRoot, 'backend', 'kinten_backend.exe'),
-      path.join(projectRoot, 'kinten_backend.exe'),
+    final bool isWindows = Platform.isWindows;
+    final String exeName = isWindows ? 'kinten_backend.exe' : 'kinten_backend';
+
+    final List<String> candidates = <String>[
+      // カレントディレクトリ基準
+      path.join(Directory.current.path, 'backend', exeName),
+      path.join(Directory.current.path, exeName),
+
+      // projectRoot 基準
+      path.join(projectRoot, 'dist', 'backend', exeName),
+      path.join(projectRoot, 'dist', exeName),
+      path.join(projectRoot, 'backend', exeName),
+      path.join(projectRoot, exeName),
     ];
-    for (final p in candidates) {
+
+    // macOS: アプリバンドル位置からの相対探索（kinten/ 配下運用や dist/macos/ 配下運用の両対応）
+    if (Platform.isMacOS) {
+      try {
+        final String resolved = Platform.resolvedExecutable;
+        // .../kinten.app/Contents/MacOS
+        final Directory exeDir = File(resolved).parent;
+
+        // 3 階層上: .../kinten
+        final Directory up1 = exeDir.parent; // Contents
+        final Directory up2 = up1.parent;    // kinten.app
+        final Directory up3 = up2.parent;    // kinten
+
+        candidates.addAll(<String>[
+          path.join(up3.path, exeName),
+          path.join(up3.path, 'backend', exeName),
+          path.join(up3.path, 'dist', exeName),
+          path.join(up3.path, 'dist', 'backend', exeName),
+        ]);
+
+        // 4 階層上（kinten の親）に dist/ がある運用（dist/macos/kinten.app）も考慮
+        final Directory up4 = up3.parent; // kinten の親
+        candidates.addAll(<String>[
+          path.join(up4.path, 'dist', exeName),
+          path.join(up4.path, 'dist', 'backend', exeName),
+        ]);
+      } catch (_) {
+        // 失敗しても無視（上記以外の候補で解決を試みる）
+      }
+    }
+
+    for (final String p in candidates) {
       if (File(p).existsSync()) return p;
     }
     return null;

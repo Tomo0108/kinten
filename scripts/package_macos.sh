@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macOS packaging script for Kinten
+# macOS packaging script for Kinten (with backend binary)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,41 +19,41 @@ if [[ "${1:-}" != "--skip-build" ]]; then
   flutter build macos --release
   popd >/dev/null
 
-  echo "[pkg-mac] Sync dist"
-  bash "$ROOT_DIR/scripts/sync_dist_macos.sh"
+  echo "[pkg-mac] Build backend (PyInstaller onefile)"
+  bash "$ROOT_DIR/scripts/build_backend_macos.sh"
 fi
 
 # Prepare package root
 rm -rf "$PKG_ROOT"
 mkdir -p "$PKG_ROOT"
 
-# Copy app bundle
+# Copy app bundle (prefer dist/macos, fallback to build products)
 echo "[pkg-mac] Copy app bundle"
-if [[ ! -d "$DIST_DIR/macos/kinten.app" ]]; then
-  # fallback to build dir
-  if [[ -d "$APP_SRC" ]]; then
-    mkdir -p "$DIST_DIR/macos"
-    rsync -a "$APP_SRC" "$DIST_DIR/macos/"
-  else
-    echo "[pkg-mac] kinten.app not found. Build first."
-    exit 1
-  fi
+if [[ -d "$DIST_DIR/macos/kinten.app" ]]; then
+  rsync -a "$DIST_DIR/macos/kinten.app" "$PKG_ROOT/"
+elif [[ -d "$APP_SRC" ]]; then
+  rsync -a "$APP_SRC" "$PKG_ROOT/"
+else
+  echo "[pkg-mac] kinten.app not found. Build first."
+  exit 1
 fi
-rsync -a "$DIST_DIR/macos/kinten.app" "$PKG_ROOT/"
 
-# Copy backend sources and assets
-echo "[pkg-mac] Copy backend/templates/input/output/requirements"
+# Copy backend binary and assets next to kinten.app (kinten/ 配下運用)
+echo "[pkg-mac] Copy backend binary/templates/input/output/requirements"
+if [[ -f "$DIST_DIR/kinten_backend" ]]; then
+  cp -f "$DIST_DIR/kinten_backend" "$PKG_ROOT/"
+else
+  echo "[pkg-mac] WARNING: backend binary not found at $DIST_DIR/kinten_backend"
+fi
 rsync -a "$ROOT_DIR/backend" "$PKG_ROOT/"
 rsync -a "$ROOT_DIR/templates" "$PKG_ROOT/"
 mkdir -p "$PKG_ROOT/input" "$PKG_ROOT/output"
-# Copy sample CSVs into package/input if present
 cp -f "$ROOT_DIR"/input/*.csv "$PKG_ROOT/input/" 2>/dev/null || true
 cp -f "$ROOT_DIR/requirements.txt" "$PKG_ROOT/"
 
-# Optional: include prebuilt backend if exists
-if [[ -f "$DIST_DIR/kinten_backend" ]]; then
-  echo "[pkg-mac] Copy prebuilt backend binary"
-  cp -f "$DIST_DIR/kinten_backend" "$PKG_ROOT/"
+# Ensure backend binary is executable
+if [[ -f "$PKG_ROOT/kinten_backend" ]]; then
+  chmod +x "$PKG_ROOT/kinten_backend"
 fi
 
 # Create zip
