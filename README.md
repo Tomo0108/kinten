@@ -79,7 +79,7 @@ kinten/
   ```bash
   bash scripts/sync_dist_macos.sh
   ```
-- 配布ZIPの作成（Python不要のバックエンド同梱）
+- 配布ZIPの作成（Python不要のバックエンド同梱 or backendソース同梱）
   ```bash
   bash scripts/package_macos.sh
   ```
