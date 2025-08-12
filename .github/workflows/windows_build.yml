@@ -1,0 +1,68 @@
+name: Build and Package Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'scripts/package_windows.ps1'
+      - '.github/workflows/windows_build.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+        shell: pwsh
+
+      - name: Flutter Doctor
+        run: flutter doctor -v
+        shell: pwsh
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Package (clean build, zip)
+        run: pwsh ./scripts/package_windows.ps1
+        shell: pwsh
+
+      - name: Upload artifact (CI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinten_windows
+          path: package/kinten_windows.zip
+
+      - name: Move v1.0.0 tag to HEAD (force)
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f v1.0.0
+          git push -f origin v1.0.0
+
+      - name: Create or update GitHub Release for v1.0.0
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: kinten v1.0.0
+          files: package/kinten_windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -14,6 +14,13 @@ $RELEASE_DIR = Join-Path $ROOT 'frontend\build\windows\x64\runner\Release'
 Write-Host "[pkg-win] ROOT=$ROOT"
 
 if (-not $SkipBuild) {
+  # 0) Clean Flutter project to avoid stale artifacts
+  Write-Host "[pkg-win] Flutter clean + pub get"
+  Push-Location (Join-Path $ROOT 'frontend')
+  flutter clean | Write-Host
+  flutter pub get | Write-Host
+  Pop-Location
+
   # 1) Flutter (Windows) リリースビルド
   Write-Host "[pkg-win] Build Flutter (windows)"
   Push-Location (Join-Path $ROOT 'frontend')
@@ -38,13 +45,35 @@ if (-not $SkipBuild) {
   Pop-Location
 }
 
-# 3) パッケージフォルダ作成
-Write-Host "[pkg-win] Prepare package folder"
+# 3) パッケージフォルダ作成（クリーン）
+Write-Host "[pkg-win] Prepare package folder (clean)"
+if (Test-Path $PKG_ROOT) { Remove-Item -Recurse -Force $PKG_ROOT }
 New-Item -ItemType Directory -Force -Path $PKG_ROOT | Out-Null
 
 # 4) フロントエンド成果物（Releaseフォルダ一式）
 Write-Host "[pkg-win] Copy frontend Release -> package"
 Copy-Item -Recurse -Force "$RELEASE_DIR\*" "$PKG_ROOT\" | Out-Null
+
+# 4.1) 必須ファイル検証（存在しない場合は失敗）
+Write-Host "[pkg-win] Validate required runtime files"
+$exePath = Join-Path $PKG_ROOT 'kinten.exe'
+$flutterDll1 = Join-Path $PKG_ROOT 'flutter_windows.dll'
+$flutterDll2 = Join-Path $PKG_ROOT 'flutter.dll'
+$assetsDir = Join-Path $PKG_ROOT 'data\flutter_assets'
+$icuData = Join-Path $PKG_ROOT 'data\icudtl.dat'
+
+if (-not (Test-Path $exePath)) {
+  throw "Executable not found: $exePath"
+}
+if (-not (Test-Path $flutterDll1) -and -not (Test-Path $flutterDll2)) {
+  throw "Flutter engine DLL not found (expected flutter_windows.dll or flutter.dll) in $PKG_ROOT"
+}
+if (-not (Test-Path $assetsDir)) {
+  throw "Flutter assets directory not found: $assetsDir"
+}
+if (-not (Test-Path $icuData)) {
+  throw "ICU data file not found: $icuData"
+}
 
 # 5) バックエンド実行ファイル（Python不要版）
 Write-Host "[pkg-win] Copy backend exe"
