@@ -149,12 +149,6 @@ class AppStateNotifier extends StateNotifier<AppState> {
           return dir.path;
         }
 
-        final distBackendDir = Directory(path.join(dir.path, 'dist', 'backend'));
-        final distBackendMain = File(path.join(dir.path, 'dist', 'backend', 'main.py'));
-        if (await distBackendDir.exists() && await distBackendMain.exists()) {
-          return path.join(dir.path, 'dist');
-        }
-
         final parent = dir.parent;
         if (parent.path == dir.path) break;
         dir = parent;
@@ -583,27 +577,27 @@ class AppStateNotifier extends StateNotifier<AppState> {
           currentDir.contains('kinten.app${path.separator}Contents${path.separator}MacOS') ||
           File(Platform.resolvedExecutable).parent.path.contains('kinten.app${path.separator}Contents${path.separator}MacOS'))
       ) {
-        // アプリバンドル内（dist/macos/kinten.app/Contents/MacOS など）からプロジェクトルートを解決
+        // アプリバンドル内（kinten/kinten.app/Contents/MacOS）からプロジェクトルートを解決
         try {
           // 実行バイナリの位置から解決（Directory.current が '/' になる場合の対策）
           final exeDir = File(Platform.resolvedExecutable).parent.path;
-          // dist候補（4階層上）とリポジトリ候補（5階層上）を順に確認
+          // パッケージルート候補（3階層上: kinten/）とリポジトリ候補（4階層上）を順に確認
           var up = Directory(exeDir);
-          for (int i = 0; i < 4; i++) { up = up.parent; }
-          final distCandidate = up.path; // .../dist
-          final distBackend = File(path.join(distCandidate, 'backend', 'main.py'));
-          if (distBackend.existsSync()) {
-            projectRoot = distCandidate;
-            print('Project root (dist) from app bundle: $projectRoot');
-            await _logToFile('projectRoot from app bundle(dist)=' + projectRoot);
+          for (int i = 0; i < 3; i++) { up = up.parent; }
+          final pkgCandidate = up.path; // .../kinten
+          final pkgBackend = File(path.join(pkgCandidate, 'backend', 'main.py'));
+          if (pkgBackend.existsSync()) {
+            projectRoot = pkgCandidate;
+            print('Project root (pkg) from app bundle: $projectRoot');
+            await _logToFile('projectRoot from app bundle(pkg)=' + projectRoot);
           } else {
-            // 5階層上（リポジトリ想定）
-            var upRepo = Directory(distCandidate).parent;
+            // さらに1階層上（リポジトリ直下想定）
+            var upRepo = Directory(pkgCandidate).parent;
             final repoCandidate = upRepo.path;
             final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
-            projectRoot = repoBackend.existsSync() ? repoCandidate : distCandidate;
-            print('Project root (repo or dist fallback) from app bundle: $projectRoot');
-            await _logToFile('projectRoot from app bundle(repo/dist)=' + projectRoot);
+            projectRoot = repoBackend.existsSync() ? repoCandidate : pkgCandidate;
+            print('Project root (repo or pkg fallback) from app bundle: $projectRoot');
+            await _logToFile('projectRoot from app bundle(repo/pkg)=' + projectRoot);
           }
           // 上位探索による最終確認
           final discovered = await _discoverProjectRootFrom(projectRoot);
@@ -668,7 +662,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
       // ファイルパスをエスケープ（より安全な方法）
       final csvPath = state.csvPath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final templatePath = state.templatePath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
-      final outputPath = path.join(projectRoot, 'dist').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
+      final outputPath = path.join(projectRoot, 'output').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final employeeName = state.employeeName.replaceAll('"', '\\"').replaceAll("'", "\\'");
       
       // デバッグログ
@@ -892,23 +886,23 @@ except Exception as e:
           currentDir.contains('kinten.app${path.separator}Contents${path.separator}MacOS') ||
           File(Platform.resolvedExecutable).parent.path.contains('kinten.app${path.separator}Contents${path.separator}MacOS'))
       ) {
-        // アプリバンドル（dist/macos/kinten.app/Contents/MacOS）からプロジェクトルートを解決
+        // アプリバンドル（kinten/kinten.app/Contents/MacOS）からプロジェクトルートを解決
         try {
           // 実行バイナリの位置から解決（Directory.current が '/' になる場合の対策）
           final exeDir = File(Platform.resolvedExecutable).parent.path;
-          // dist候補（4階層上）とリポジトリ候補（5階層上）を順に確認
+          // パッケージルート候補（3階層上: kinten/）とリポジトリ候補（4階層上）を順に確認
           var up = Directory(exeDir);
-          for (int i = 0; i < 4; i++) { up = up.parent; }
-          final distCandidate = up.path; // .../dist
-          final distBackend = File(path.join(distCandidate, 'backend', 'main.py'));
-          if (distBackend.existsSync()) {
-            projectRoot = distCandidate;
-            print('プロジェクトルート(dist)をアプリバンドルから解決: $projectRoot');
+          for (int i = 0; i < 3; i++) { up = up.parent; }
+          final pkgCandidate = up.path; // .../kinten
+          final pkgBackend = File(path.join(pkgCandidate, 'backend', 'main.py'));
+          if (pkgBackend.existsSync()) {
+            projectRoot = pkgCandidate;
+            print('プロジェクトルート(pkg)をアプリバンドルから解決: $projectRoot');
           } else {
-            var upRepo = Directory(distCandidate).parent;
+            var upRepo = Directory(pkgCandidate).parent;
             final repoCandidate = upRepo.path;
             final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
-            projectRoot = repoBackend.existsSync() ? repoCandidate : distCandidate;
+            projectRoot = repoBackend.existsSync() ? repoCandidate : pkgCandidate;
             print('プロジェクトルート(repoまたはdist)をアプリバンドルから解決: $projectRoot');
           }
           final discovered = await _discoverProjectRootFrom(projectRoot);
@@ -966,7 +960,7 @@ except Exception as e:
       if (exePath != null) {
         outputFolderResult = await _callBackendExe(exePath, {
           'process_type': 'create_pdf_output_folder',
-          'base_output_dir': path.join(projectRoot, 'dist').replaceAll('\\', '/'),
+          'base_output_dir': path.join(projectRoot, 'output').replaceAll('\\', '/'),
         }, workingDirectory: projectRoot);
       } else {
         outputFolderResult = await _createPdfOutputFolder(projectRoot);

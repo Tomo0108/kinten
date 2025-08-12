@@ -46,18 +46,18 @@ class SettingsService {
         currentDir.contains('kinten.app${path.separator}Contents${path.separator}MacOS') ||
         File(Platform.resolvedExecutable).parent.path.contains('kinten.app${path.separator}Contents${path.separator}MacOS')
       )) {
-        // アプリバンドル内からの実行（配布時）: 実行バイナリの位置から dist を特定
+        // アプリバンドル内からの実行（配布時）: 実行バイナリの位置から kinten/ を特定
         final exeDir = File(Platform.resolvedExecutable).parent.path;
         var up = Directory(exeDir);
-        for (int i = 0; i < 4; i++) { up = up.parent; }
-        final distCandidate = up.path; // .../dist
-        // dist/backend/main.py があれば dist をルートとして扱う
-        final distBackendMain = File(path.join(distCandidate, 'backend', 'main.py'));
-        if (distBackendMain.existsSync()) {
-          projectRoot = distCandidate;
+        for (int i = 0; i < 3; i++) { up = up.parent; }
+        final pkgCandidate = up.path; // .../kinten
+        // kinten/backend/main.py があれば kinten をルートとして扱う
+        final pkgBackendMain = File(path.join(pkgCandidate, 'backend', 'main.py'));
+        if (pkgBackendMain.existsSync()) {
+          projectRoot = pkgCandidate;
         } else {
           // フォールバック: さらに1階層上（リポジトリ直下想定）
-          final repoCandidate = Directory(distCandidate).parent.path;
+          final repoCandidate = Directory(pkgCandidate).parent.path;
           final repoBackendMain = File(path.join(repoCandidate, 'backend', 'main.py'));
           if (repoBackendMain.existsSync()) {
             projectRoot = repoCandidate;
@@ -70,22 +70,16 @@ class SettingsService {
       // 失敗時は currentDir を継続利用
     }
     
-    // デフォルト: プロジェクト直下の templates（配布時は dist/templates を優先チェック）
-    final distPrimary = path.join(projectRoot, 'dist', 'templates', '勤怠表雛形_2025年版.xlsx');
-    try {
-      if (await File(distPrimary).exists()) {
-        return distPrimary;
-      }
-    } catch (_) {}
-
+    // デフォルト: プロジェクト直下の templates（配布時は kinten/templates を優先チェック）
     final primary = path.join(projectRoot, 'templates', '勤怠表雛形_2025年版.xlsx');
     try {
       if (await File(primary).exists()) {
         return primary;
       }
     } catch (_) {}
-    // フォールバック: dist/templates 配下
-    final fallback = distPrimary;
+
+    // フォールバック: パッケージルートからの参照（同一パス）
+    final fallback = primary;
     try {
       if (await File(fallback).exists()) {
         return fallback;
@@ -185,7 +179,7 @@ class SettingsService {
       return path.join(directory.path, 'Kinten_Output');
     } catch (e) {
       print('デフォルト出力ディレクトリ取得エラー: $e');
-      // フォールバック: プロジェクトルートのdistディレクトリ
+      // フォールバック: プロジェクトルートのoutputディレクトリ
       final currentDir = Directory.current.path;
       String projectRoot;
       
@@ -203,7 +197,7 @@ class SettingsService {
         projectRoot = currentDir;
       }
       
-      return path.join(projectRoot, 'dist');
+      return path.join(projectRoot, 'output');
     }
   }
 
