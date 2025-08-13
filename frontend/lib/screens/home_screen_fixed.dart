@@ -516,10 +516,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           }
         : null;
     
-    return Container(
+    bool isHovered = false;
+    return StatefulBuilder(
+      builder: (context, setSBState) {
+        final actionable = isReady && appState.autoTransferStatus != AppStatus.processing;
+        final isMacOSPlatform = defaultTargetPlatform == TargetPlatform.macOS;
+        final scale = (actionable && isHovered && !isMacOSPlatform) ? 1.02 : 1.0;
+        return Container(
       margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
       child: Center(
-        child: Container(
+        child: MouseRegion(
+          onEnter: isMacOSPlatform ? null : (_) { if (actionable) setSBState(() => isHovered = true); },
+          onExit:  isMacOSPlatform ? null : (_) { if (actionable) setSBState(() => isHovered = false); },
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 120),
+            scale: scale,
+            child: Container(
           decoration: BoxDecoration(
             gradient: isReady && appState.autoTransferStatus != AppStatus.processing
                 ? appState.autoTransferStatus == AppStatus.success
@@ -600,8 +612,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ),
+            ),
+          ),
         ),
       ),
+    );
+      }
     );
   }
   
