@@ -714,7 +714,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
       // ファイルパスをエスケープ（より安全な方法）
       final csvPath = state.csvPath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final templatePath = state.templatePath.replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
-      final outputPath = path.join(projectRoot, 'dist').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
+      final outputPath = path.join(projectRoot, 'output').replaceAll(path.separator, '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
       final employeeName = state.employeeName.replaceAll('"', '\\"').replaceAll("'", "\\'");
       
       // デバッグログ
@@ -1012,7 +1012,7 @@ except Exception as e:
       if (exePath != null) {
         outputFolderResult = await _callBackendExe(exePath, {
           'process_type': 'create_pdf_output_folder',
-          'base_output_dir': path.join(projectRoot, 'dist').replaceAll('\\', '/'),
+          'base_output_dir': path.join(projectRoot, 'output').replaceAll('\\', '/'),
         }, workingDirectory: projectRoot);
       } else {
         outputFolderResult = await _createPdfOutputFolder(projectRoot);

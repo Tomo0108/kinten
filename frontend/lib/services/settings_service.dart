@@ -185,7 +185,7 @@ class SettingsService {
       return path.join(directory.path, 'Kinten_Output');
     } catch (e) {
       print('デフォルト出力ディレクトリ取得エラー: $e');
-      // フォールバック: プロジェクトルートのdistディレクトリ
+      // フォールバック: プロジェクトルートのoutputディレクトリ
       final currentDir = Directory.current.path;
       String projectRoot;
       
@@ -203,7 +203,7 @@ class SettingsService {
         projectRoot = currentDir;
       }
       
-      return path.join(projectRoot, 'dist');
+      return path.join(projectRoot, 'output');
     }
   }
 

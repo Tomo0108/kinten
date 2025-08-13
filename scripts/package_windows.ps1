@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ROOT = (Resolve-Path "$PSScriptRoot\..\").Path
-$DIST = Join-Path $ROOT 'dist'
+$PYI_DIST = Join-Path $ROOT 'build\kinten_backend'
 $PKG_DIR = Join-Path $ROOT 'package'
 $PKG_ROOT = Join-Path $PKG_DIR 'kinten'
 $RELEASE_DIR = Join-Path $ROOT 'frontend\build\windows\x64\runner\Release'
@@ -37,9 +37,9 @@ if (-not $SkipBuild) {
   python -m pip install --upgrade pip setuptools wheel | Write-Host
   pip install -r requirements.txt pyinstaller | Write-Host
   if (Test-Path 'kinten_backend.spec') {
-    pyinstaller .\kinten_backend.spec | Write-Host
+    pyinstaller --distpath .\build\kinten_backend .\kinten_backend.spec | Write-Host
   } else {
-    pyinstaller --onefile .\backend\main.py --name kinten_backend --distpath .\dist | Write-Host
+    pyinstaller --onefile .\backend\main.py --name kinten_backend --distpath .\build\kinten_backend | Write-Host
   }
   deactivate
   Pop-Location
@@ -77,8 +77,8 @@ if (-not (Test-Path $icuData)) {
 
 # 5) バックエンド実行ファイル（Python不要版）
 Write-Host "[pkg-win] Copy backend exe"
-if (Test-Path (Join-Path $DIST 'kinten_backend.exe')) {
-  Copy-Item -Force (Join-Path $DIST 'kinten_backend.exe') (Join-Path $PKG_ROOT 'kinten_backend.exe')
+if (Test-Path (Join-Path $PYI_DIST 'kinten_backend.exe')) {
+  Copy-Item -Force (Join-Path $PYI_DIST 'kinten_backend.exe') (Join-Path $PKG_ROOT 'kinten_backend.exe')
 }
 
 # 5.1) バックエンドソース一式も同梱（FlutterからPython直呼びのフォールバック用）
