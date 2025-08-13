@@ -799,6 +799,29 @@ class AppStateNotifier extends StateNotifier<AppState> {
       print('Project Root: $projectRoot');
       print('=== Pythonバックエンド呼び出し準備完了 ===');
       
+      // まずはスタンドアロンExeがあれば優先的に使用
+      try {
+        final exePath = _resolveBackendExePath(projectRoot);
+        if (exePath != null) {
+          final payload = <String, dynamic>{
+            'process_type': 'csv_to_excel',
+            'csv_path': csvPath,
+            'template_path': templatePath,
+            'output_dir': outputPath,
+            'employee_name': employeeName,
+          };
+          final result = await _callBackendExe(
+            exePath,
+            payload,
+            workingDirectory: projectRoot,
+            timeout: const Duration(minutes: 3),
+          );
+          return result;
+        }
+      } catch (_) {
+        // フォールバックでPythonインライン実行へ
+      }
+
       // Pythonスクリプトの実行（プロジェクトルートから実行）
       final pythonCode = '''
 # -*- coding: utf-8 -*-
