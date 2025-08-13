@@ -10,6 +10,7 @@ import os
 import json
 import traceback
 from pathlib import Path
+from datetime import datetime
 
 # バックエンドモジュールをインポート
 # KintenProcessor のインポートを堅牢化
@@ -26,6 +27,34 @@ except Exception:
         sys.path.insert(0, os.path.dirname(__file__))
         from main_processor import KintenProcessor  # type: ignore
 
+def _resolve_log_dir(data: dict) -> str:
+    try:
+        for key in ('output_dir', 'base_output_dir', 'output_folder'):
+            v = data.get(key)
+            if isinstance(v, str) and v.strip():
+                p = os.path.join(v, 'logs')
+                os.makedirs(p, exist_ok=True)
+                return p
+    except Exception:
+        pass
+    # フォールバック: CWD/output/logs
+    p = os.path.join(os.getcwd(), 'output', 'logs')
+    try:
+        os.makedirs(p, exist_ok=True)
+    except Exception:
+        pass
+    return p
+
+
+def _write_log(log_dir: str, message: str) -> None:
+    try:
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(os.path.join(log_dir, 'backend.log'), 'a', encoding='utf-8') as f:
+            f.write(f'[{ts}] {message}\n')
+    except Exception:
+        pass
+
+
 def main():
     """メイン処理関数"""
     try:
@@ -37,9 +66,15 @@ def main():
         
         # JSONをパース
         data = json.loads(input_data)
+        log_dir = _resolve_log_dir(data)
+        _write_log(log_dir, 'backend start')
+        _write_log(log_dir, f'cwd={os.getcwd()}')
+        _write_log(log_dir, f'python={sys.version}')
+        _write_log(log_dir, f'platform={sys.platform}')
         
         # 処理タイプを取得
         process_type = data.get('process_type', 'csv_to_excel')
+        _write_log(log_dir, f'process_type={process_type}')
         
         # メインプロセッサーを初期化
         processor = KintenProcessor()
@@ -75,6 +110,7 @@ def main():
                 base_output_dir=output_dir,
                 employee_name=employee_name
             )
+            _write_log(log_dir, f'csv_to_excel success={result.get("success")} output_dir={output_dir}')
         
         elif process_type == 'get_excel_files':
             # Excelファイル取得処理
@@ -84,6 +120,7 @@ def main():
                 return
             
             result = processor.get_excel_files(folder_path)
+            _write_log(log_dir, f'get_excel_files success={result.get("success")} folder={folder_path}')
         
         elif process_type == 'create_pdf_output_folder':
             # PDF出力フォルダ作成処理
@@ -93,6 +130,7 @@ def main():
                 return
             
             result = processor.create_pdf_output_folder(base_output_dir)
+            _write_log(log_dir, f'create_pdf_output_folder success={result.get("success")} base={base_output_dir}')
         
         elif process_type == 'convert_to_pdf':
             # PDF変換処理
@@ -104,6 +142,7 @@ def main():
                 return
             
             result = processor.convert_excel_to_pdf(excel_files, output_folder)
+            _write_log(log_dir, f'convert_to_pdf success={result.get("success")} out={output_folder} converted={result.get("total_converted")}')
         
         elif process_type == 'open_folder':
             # フォルダを開く処理
@@ -113,6 +152,7 @@ def main():
                 return
             
             result = processor.open_folder(folder_path)
+            _write_log(log_dir, f'open_folder success={result.get("success")} folder={folder_path}')
         
         else:
             print(json.dumps({"error": f"不明な処理タイプ: {process_type}"}))
@@ -120,14 +160,24 @@ def main():
         
         # 結果をJSONで出力
         print(json.dumps(result, ensure_ascii=False))
+        _write_log(log_dir, f'completed success={result.get("success")}')
         
     except json.JSONDecodeError as e:
+        try:
+            _write_log(_resolve_log_dir({}), f'json decode error: {str(e)}')
+        except Exception:
+            pass
         print(json.dumps({"error": f"JSONパースエラー: {str(e)}"}))
     except Exception as e:
         error_info = {
             "error": f"予期しないエラーが発生しました: {str(e)}",
             "traceback": traceback.format_exc()
         }
+        try:
+            _write_log(_resolve_log_dir({}), f'exception: {str(e)}')
+            _write_log(_resolve_log_dir({}), error_info.get('traceback',''))
+        except Exception:
+            pass
         print(json.dumps(error_info, ensure_ascii=False))
 
 if __name__ == "__main__":

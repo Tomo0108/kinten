@@ -11,7 +11,7 @@ a = Analysis(
         ('input', 'input'),
         ('output', 'output'),
     ],
-    hiddenimports=[],
+    hiddenimports=['win32com', 'win32com.client', 'pythoncom'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

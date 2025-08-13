@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as path;
+import 'package:flutter/foundation.dart';
 import '../services/settings_service.dart';
 import '../services/file_service.dart';
 
@@ -239,6 +240,12 @@ class AppStateNotifier extends StateNotifier<AppState> {
       path.join(Directory.current.path, exeName),
 
       // projectRoot 基準
+      // リリース配布レイアウト（kinten.exe と同階層）
+      path.join(projectRoot, 'kinten_backend.exe'),
+      path.join(projectRoot, 'backend', 'kinten_backend.exe'),
+      path.join(projectRoot, 'kinten', 'kinten_backend.exe'),
+      path.join(projectRoot, 'kinten', 'backend', 'kinten_backend.exe'),
+      // 旧レイアウト互換（dist 配布の名残）
       path.join(projectRoot, 'dist', 'backend', exeName),
       path.join(projectRoot, 'dist', exeName),
       path.join(projectRoot, 'backend', exeName),
@@ -286,6 +293,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
     String exePath,
     Map<String, dynamic> payload, {
     String? workingDirectory,
+    Duration timeout = const Duration(seconds: 180),
   }) async {
     final process = await Process.start(
       exePath,
@@ -301,8 +309,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
     // 入力（JSON）を送信
     process.stdin.writeln(json.encode(payload));
     await process.stdin.close();
-    // タイムアウト導入（既定120秒）
-    const Duration timeout = Duration(seconds: 120);
+    // タイムアウト導入
     String stdoutStr = '';
     String stderrStr = '';
     int exitCode = -1;
@@ -315,7 +322,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
       try { process.kill(ProcessSignal.sigkill); } catch (_) {}
       return <String, dynamic>{
         'success': false,
-        'error': 'バックエンドがタイムアウトしました（120秒）',
+        'error': 'バックエンドがタイムアウトしました（Excelのダイアログやライセンスの問題の可能性）',
       };
     }
 
@@ -505,25 +512,53 @@ class AppStateNotifier extends StateNotifier<AppState> {
           if (await outputDir.exists()) {
             print('Output folder exists, attempting to open...');
             print('Using absolute path: ${outputDir.absolute.path}');
-            final success = await FileService.openFolder(outputDir.absolute.path);
-            if (success) {
-              print('Successfully opened output folder: ${outputDir.absolute.path}');
-            } else {
-              print('Failed to open output folder: ${outputDir.absolute.path}');
+            // 1st: FileService.openFolder
+            var success = await FileService.openFolder(outputDir.absolute.path);
+            // 2nd: OSごとの直接呼び出しフォールバック
+            if (!success) {
+              try {
+                if (Platform.isWindows) {
+                  final r = await Process.run('cmd', ['/c', 'start', '', outputDir.absolute.path]);
+                  success = r.exitCode == 0 || r.exitCode == 1; // startは1を返すことがある
+                } else if (Platform.isMacOS) {
+                  final r = await Process.run('open', [outputDir.absolute.path]);
+                  success = r.exitCode == 0;
+                }
+              } catch (_) {}
             }
+            print(success
+                ? 'Successfully opened output folder: ${outputDir.absolute.path}'
+                : 'Failed to open output folder: ${outputDir.absolute.path}');
           } else {
             print('Output folder does not exist: $outputFolder');
             print('Trying with absolute path: ${outputDir.absolute.path}');
             if (await outputDir.absolute.exists()) {
               print('Absolute path exists, attempting to open...');
-              final success = await FileService.openFolder(outputDir.absolute.path);
-              if (success) {
-                print('Successfully opened output folder with absolute path: ${outputDir.absolute.path}');
-              } else {
-                print('Failed to open output folder with absolute path: ${outputDir.absolute.path}');
+              var success = await FileService.openFolder(outputDir.absolute.path);
+              if (!success) {
+                try {
+                  if (Platform.isWindows) {
+                    final r = await Process.run('cmd', ['/c', 'start', '', outputDir.absolute.path]);
+                    success = r.exitCode == 0 || r.exitCode == 1;
+                  } else if (Platform.isMacOS) {
+                    final r = await Process.run('open', [outputDir.absolute.path]);
+                    success = r.exitCode == 0;
+                  }
+                } catch (_) {}
               }
+              print(success
+                  ? 'Successfully opened output folder with absolute path: ${outputDir.absolute.path}'
+                  : 'Failed to open output folder with absolute path: ${outputDir.absolute.path}');
             } else {
               print('Absolute path also does not exist: ${outputDir.absolute.path}');
+              // 追加フォールバック: projectRoot/output を開く
+              final currentDir = Directory.current.path;
+              final projectRoot = Directory(currentDir).parent.path;
+              final fallback = Directory(path.join(projectRoot, 'output'));
+              if (await fallback.exists()) {
+                final ok = await FileService.openFolder(fallback.path);
+                print('Fallback projectRoot/output open: $ok');
+              }
             }
           }
         } else {
@@ -539,7 +574,18 @@ class AppStateNotifier extends StateNotifier<AppState> {
               }
             }
             if (candidate.isNotEmpty) {
-              final ok = await FileService.openFolder(candidate);
+              var ok = await FileService.openFolder(candidate);
+              if (!ok) {
+                try {
+                  if (Platform.isWindows) {
+                    final r = await Process.run('cmd', ['/c', 'start', '', candidate]);
+                    ok = r.exitCode == 0 || r.exitCode == 1;
+                  } else if (Platform.isMacOS) {
+                    final r = await Process.run('open', [candidate]);
+                    ok = r.exitCode == 0;
+                  }
+                } catch (_) {}
+              }
               print('Fallback open folder(${candidate}): ${ok}');
             }
           } catch (_) {}
@@ -685,6 +731,8 @@ class AppStateNotifier extends StateNotifier<AppState> {
         final windowsDir = x64Dir.parent;
         final buildDir = windowsDir.parent;
         final frontendDir = buildDir.parent;
+        // リリース配布では、kinten.exe が展開先直下に来るため、一段上をプロジェクトルート扱い
+        // ここでは、配布物の直上（`kinten/`フォルダ直下）も考慮
         projectRoot = frontendDir.parent.path;
         print('Project root (from Windows Release - Python): $projectRoot');
         await _logToFile('projectRoot from Windows Release=' + projectRoot);
@@ -693,7 +741,17 @@ class AppStateNotifier extends StateNotifier<AppState> {
         print('Project root (from frontend - Python): $projectRoot'); // デバッグログ
         await _logToFile('projectRoot from frontend dir=' + projectRoot);
       } else {
-        projectRoot = currentDir;
+        // 配布レイアウト: kinten.exe 実行時のカレントから `kinten/..` を想定
+        // kinten.exe と backend/ が同階層にある場合もあるため、`current` とその親を順に確認
+        String candidate = currentDir;
+        final exeDir = File(Platform.resolvedExecutable).parent.path;
+        final parentDir = Directory(exeDir).parent.path;
+        if (await Directory(path.join(exeDir, 'backend')).exists()) {
+          candidate = exeDir;
+        } else if (await Directory(path.join(parentDir, 'backend')).exists()) {
+          candidate = parentDir;
+        }
+        projectRoot = candidate;
         print('Project root (current - Python): $projectRoot'); // デバッグログ
         await _logToFile('projectRoot from current=' + projectRoot);
       }
@@ -859,10 +917,12 @@ except Exception as e:
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/kinten_script_${DateTime.now().millisecondsSinceEpoch}.py');
       
-      // デバッグ用：Pythonコードをファイルに保存
-      final debugFile = File('${projectRoot}/debug_python_code.py');
-      await debugFile.writeAsString(pythonCode);
-      print('Debug Python code saved to: ${debugFile.path}');
+      // デバッグ用：Pythonコードをファイルに保存（リリースビルドでは無効化）
+      if (!kReleaseMode) {
+        final debugFile = File('${projectRoot}/debug_python_code.py');
+        await debugFile.writeAsString(pythonCode);
+        print('Debug Python code saved to: ${debugFile.path}');
+      }
       
       try {
         await tempFile.writeAsString(pythonCode);
