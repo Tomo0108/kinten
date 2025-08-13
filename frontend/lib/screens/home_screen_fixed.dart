@@ -570,7 +570,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: GestureDetector(
             onTap: onPressed,
             child: Container(
-              width: isSmallScreen ? 200 : 240,
+              width: isSmallScreen
+                  ? (MediaQuery.of(context).size.width * 0.9).clamp(180.0, 360.0)
+                  : 240,
               height: isSmallScreen ? 56 : 64,
               padding: EdgeInsets.symmetric(
                 horizontal: isSmallScreen ? 24 : 32, 
@@ -691,7 +693,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: GestureDetector(
             onTap: onPressed,
             child: Container(
-              width: isSmallScreen ? 200 : 240,
+              width: isSmallScreen
+                  ? (MediaQuery.of(context).size.width * 0.9).clamp(180.0, 360.0)
+                  : 240,
               height: isSmallScreen ? 56 : 64,
               padding: EdgeInsets.symmetric(
                 horizontal: isSmallScreen ? 24 : 32, 

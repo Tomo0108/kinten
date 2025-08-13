@@ -41,27 +41,34 @@ class FileService {
   static Future<bool> _openFolderWindows(String folderPath) async {
     print('Windows環境でexplorer.exeを使用');
     
-    // 方法1: explorer.exe（推奨）
+    // 方法1: cmd /c start（信頼性が高い）
     try {
-      print('explorer.exe実行中...');
-      print('実行コマンド: explorer.exe $folderPath');
-      
       // パスの正規化（WindowsではBackslashを使用）
       final normalizedPath = path.normalize(folderPath).replaceAll('/', '\\');
-      print('正規化されたパス: $normalizedPath');
-      
-      final result = await Process.run('explorer.exe', [normalizedPath]);
-      print('Explorer result: ${result.exitCode}');
-      print('Explorer stdout: ${result.stdout}');
-      print('Explorer stderr: ${result.stderr}');
-      
-      // explorer.exeは通常exit code 1を返すが、正常に動作する
-      print('Explorer実行完了（exit code: ${result.exitCode}）');
-      return true; // explorer.exeは常に成功とみなす
+      print('cmd start 実行中...');
+      print('実行コマンド: cmd /c start "" "$normalizedPath"');
+      final result = await Process.run(
+        'cmd',
+        ['/c', 'start', '', normalizedPath],
+        runInShell: true,
+      );
+      print('cmd start result: ${result.exitCode}');
+      // startは非同期起動のためexit codeは信頼しづらいが、例外がなければ成功とみなす
+      return true;
     } catch (e) {
-      print('Explorer実行エラー: $e');
-      // フォールバックとしてurl_launcherを使用
-      return await _openFolderGeneric(folderPath);
+      print('cmd start 実行エラー: $e');
+      // フォールバック: explorer.exeを試す
+      try {
+        final normalizedPath = path.normalize(folderPath).replaceAll('/', '\\');
+        print('explorer.exe フォールバック実行...');
+        final result = await Process.run('explorer.exe', [normalizedPath]);
+        print('Explorer fallback exit: ${result.exitCode}');
+        return true;
+      } catch (e2) {
+        print('Explorerフォールバックも失敗: $e2');
+        // 最後のフォールバック: url_launcher
+        return await _openFolderGeneric(folderPath);
+      }
     }
   }
 
