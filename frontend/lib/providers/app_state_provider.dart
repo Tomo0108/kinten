@@ -528,6 +528,21 @@ class AppStateNotifier extends StateNotifier<AppState> {
           }
         } else {
           print('No output folder in result: $result');
+          // フォールバック: 設定の出力先 or カレントディレクトリ直下の output を開く
+          try {
+            String? candidate = state.outputPath;
+            if (candidate.isEmpty) {
+              final current = Directory.current.path;
+              final fallback = Directory(path.join(current, 'output'));
+              if (await fallback.exists()) {
+                candidate = fallback.path;
+              }
+            }
+            if (candidate.isNotEmpty) {
+              final ok = await FileService.openFolder(candidate);
+              print('Fallback open folder(${candidate}): ${ok}');
+            }
+          } catch (_) {}
         }
         print('=== フォルダ自動開き処理完了 ===');
       } else {
