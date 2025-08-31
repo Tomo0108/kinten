@@ -70,22 +70,13 @@ class SettingsService {
       // 失敗時は currentDir を継続利用
     }
     
-    // デフォルト: プロジェクト直下の templates（配布時は kinten/templates を優先チェック）
-    final primary = path.join(projectRoot, 'templates', '勤怠表雛形_2025年版.xlsx');
-    try {
-      if (await File(primary).exists()) {
-        return primary;
-      }
-    } catch (_) {}
-
-    // フォールバック: パッケージルートからの参照（同一パス）
-    final fallback = primary;
-    try {
-      if (await File(fallback).exists()) {
-        return fallback;
-      }
-    } catch (_) {}
-    // いずれも無ければ primary を返す（後段でユーザー選択可能）
+    // デフォルト: プロジェクト直下の templates の既定雛形を使用
+    final templatesDir = path.join(projectRoot, 'templates');
+    final primary = path.join(templatesDir, '勤怠表雛形_2025年版.xlsx');
+    if (await File(primary).exists()) {
+      return primary;
+    }
+    // フォールバック: ファイルが無くても既定パスを返し、後段でユーザーが選択可能
     return primary;
   }
 

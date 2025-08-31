@@ -2,16 +2,15 @@
 
 
 a = Analysis(
-    ['backend\\main.py'],
+    ['/Users/tomo/Documents/dev/kinten_/backend/main.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('backend', 'backend'),  # backend一式を同梱
-        ('templates', 'templates'),
-        ('input', 'input'),
-        ('output', 'output'),
+    datas=[('backend/*.py', 'backend')],
+    hiddenimports=[
+        'backend',
+        'backend.csv_processor', 'backend.excel_processor', 'backend.main_processor', 'backend.pdf_converter',
+        'xlwings', 'appscript', 'psutil', 'lxml'
     ],
-    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

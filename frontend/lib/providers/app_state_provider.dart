@@ -218,14 +218,29 @@ class AppStateNotifier extends StateNotifier<AppState> {
     return path.replaceAll('\\', '/').replaceAll('"', '\\"').replaceAll("'", "\\'");
   }
 
-  // バックエンドexeのパスを解決（実行ディレクトリ優先 → dist 配下 → プロジェクトルート直下）
+  // バックエンド実行ファイルのパスを解決（Windows: kinten_backend.exe, macOS: kinten_backend）
   String? _resolveBackendExePath(String projectRoot) {
-    final cwdExe = path.join(Directory.current.path, 'kinten_backend.exe');
-    if (File(cwdExe).existsSync()) return cwdExe;
-    final distExe = path.join(projectRoot, 'dist', 'kinten_backend.exe');
-    if (File(distExe).existsSync()) return distExe;
-    final rootExe = path.join(projectRoot, 'kinten_backend.exe');
-    if (File(rootExe).existsSync()) return rootExe;
+    final String binaryName = Platform.isWindows ? 'kinten_backend.exe' : 'kinten_backend';
+    final String cwdCandidate = path.join(Directory.current.path, binaryName);
+    if (File(cwdCandidate).existsSync()) return cwdCandidate;
+    final String rootCandidate = path.join(projectRoot, binaryName);
+    if (File(rootCandidate).existsSync()) return rootCandidate;
+    // kinten.app のバンドル隣に置かれているケース（AppTranslocation対策）
+    try {
+      if (Platform.isMacOS && Directory.current.path.contains('kinten.app')) {
+        final appDir = Directory.current;
+        final threeUp = appDir.parent.parent.parent; // .../kinten
+        final threeUpCandidate = path.join(threeUp.path, binaryName);
+        if (File(threeUpCandidate).existsSync()) return threeUpCandidate;
+      }
+      // macOS: アプリバンドル内にも配置されている場合（Contents/MacOS/）
+      if (Platform.isMacOS) {
+        // resolvedExecutable からバンドルの MacOS ディレクトリを特定
+        final exeDir = File(Platform.resolvedExecutable).parent.path;
+        final inAppCandidate = path.join(exeDir, binaryName);
+        if (File(inAppCandidate).existsSync()) return inAppCandidate;
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -537,8 +552,8 @@ class AppStateNotifier extends StateNotifier<AppState> {
         }
       } else {
         final rawErr = result['error']?.toString() ?? '';
-        final errorMessage = rawErr.contains('excel_not_installed') || rawErr.contains('Excelがインストールされていません')
-            ? 'Excelがインストールされていません'
+        final errorMessage = rawErr.contains('excel_not_installed') || rawErr.contains('Excelが')
+            ? 'Excelがダウンロードされていません'
             : (rawErr.isNotEmpty ? rawErr : 'PDF変換に失敗しました');
         print('PDF変換エラー: $errorMessage');
         setPdfConversionError(errorMessage);
@@ -674,7 +689,21 @@ class AppStateNotifier extends StateNotifier<AppState> {
       print('Project Root: $projectRoot');
       print('=== Pythonバックエンド呼び出し準備完了 ===');
       
-      // Pythonスクリプトの実行（プロジェクトルートから実行）
+      // バックエンド実行ファイルがあればそれを優先（Python不要）
+      final exePath = _resolveBackendExePath(projectRoot);
+      if (exePath != null) {
+        final result = await _callBackendExe(exePath, {
+          'process_type': 'csv_to_excel',
+          'csv_path': csvPath,
+          'template_path': templatePath,
+          'output_dir': outputPath,
+          'employee_name': employeeName,
+          'anonymize': false,
+        }, workingDirectory: projectRoot);
+        return result;
+      }
+
+      // フォールバック: Pythonスクリプトの実行（プロジェクトルートから実行）
       final pythonCode = '''
 # -*- coding: utf-8 -*-
 import sys
@@ -749,7 +778,7 @@ try:
     from main_processor import KintenProcessor
     print("✅ Successfully imported KintenProcessor")
     
-    processor = KintenProcessor()
+processor = KintenProcessor(anonymize_employee=False)
     print("✅ Successfully created KintenProcessor instance")
     
     print("Starting file processing...")
@@ -903,7 +932,7 @@ except Exception as e:
             final repoCandidate = upRepo.path;
             final repoBackend = File(path.join(repoCandidate, 'backend', 'main.py'));
             projectRoot = repoBackend.existsSync() ? repoCandidate : pkgCandidate;
-            print('プロジェクトルート(repoまたはdist)をアプリバンドルから解決: $projectRoot');
+            print('プロジェクトルート(repoまたはpkg)をアプリバンドルから解決: $projectRoot');
           }
           final discovered = await _discoverProjectRootFrom(projectRoot);
           if (discovered != null) {
@@ -943,19 +972,21 @@ except Exception as e:
         };
       }
       
-      // バックエンドディレクトリの存在確認
-      final backendDir = Directory('$projectRoot/backend');
-      if (!await backendDir.exists()) {
-        print('バックエンドディレクトリが存在しません: $projectRoot/backend');
-        await _logToFile('backend missing(pdf): ' + backendDir.path);
-        return {
-          'success': false,
-          'error': 'バックエンドディレクトリが見つかりません: $projectRoot/backend',
-        };
+      // バックエンドexeが見つかれば backend ディレクトリ検査はスキップ
+      final exePath = _resolveBackendExePath(projectRoot);
+      if (exePath == null) {
+        final backendDir = Directory('$projectRoot/backend');
+        if (!await backendDir.exists()) {
+          print('バックエンドディレクトリが存在しません: $projectRoot/backend');
+          await _logToFile('backend missing(pdf): ' + backendDir.path);
+          return {
+            'success': false,
+            'error': 'バックエンドディレクトリが見つかりません: $projectRoot/backend',
+          };
+        }
       }
       
       // 出力フォルダを作成（exeがあればexe経由で作成）
-      final exePath = _resolveBackendExePath(projectRoot);
       Map<String, dynamic> outputFolderResult;
       if (exePath != null) {
         outputFolderResult = await _callBackendExe(exePath, {

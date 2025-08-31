@@ -698,35 +698,55 @@ finally:
             return False, str(e), None
 
     def _excel_to_pdf_macos_excel(self, excel_files: List[str], output_folder: str, timeout_seconds: int = 90) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
-        """macOSのMicrosoft ExcelをAppleScript経由で用いてPDF出力"""
+        """macOSのMicrosoft ExcelをAppleScriptで一括PDF出力（Excel起動を1回に集約）"""
         converted_files: List[Dict[str, str]] = []
         failed_files: List[Dict[str, str]] = []
 
         if not self._is_macos_excel_available():
             return [], [{'file': '(batch)', 'error': 'Microsoft Excel (macOS) または osascript が見つかりません'}]
 
-        # AppleScript（引数: 入力/出力）
+        # 入出力ペアを構築
+        arg_pairs: List[str] = []
+        outputs: List[str] = []
+        for excel_file in excel_files:
+            try:
+                base_name = os.path.splitext(os.path.basename(excel_file))[0]
+                pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
+                if os.path.exists(pdf_path):
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    pdf_path = os.path.join(output_folder, f"{base_name}_{timestamp}.pdf")
+                arg_pairs.extend([excel_file, pdf_path])
+                outputs.append(pdf_path)
+            except Exception as e:
+                failed_files.append({'file': excel_file, 'error': str(e)})
+
+        if not arg_pairs:
+            return converted_files, failed_files
+
+        # AppleScript（引数: 入力/出力の交互配列）
         applescript = r'''
 on run argv
-    set inputPathPosix to item 1 of argv
-    set outputPathPosix to item 2 of argv
     tell application "Microsoft Excel"
         activate
         try
             set display alerts to false
-        end try
-        set wb to open (POSIX file inputPathPosix) read only yes
-        try
-            -- ActiveWorkbook 全体を印刷範囲に従ってPDF化
-            set vbCmd to "ActiveWorkbook.ExportAsFixedFormat Type:=0, Filename:=\"" & outputPathPosix & "\", Quality:=0, IncludeDocProperties:=True, IgnorePrintAreas:=False, OpenAfterPublish:=False"
-            do visual basic vbCmd
+            set argCount to count of argv
+            set i to 1
+            repeat while i ≤ argCount
+                set inputPathPosix to item i of argv
+                set outputPathPosix to item (i + 1) of argv
+                set inputAlias to POSIX file inputPathPosix
+                open inputAlias
+                do Visual Basic "Application.ActiveWorkbook.ExportAsFixedFormat 0, \"" & outputPathPosix & "\", 0, True, False, , , False"
+                close active workbook saving no
+                set i to i + 2
+            end repeat
         on error errMsg number errNum
             try
-                close wb saving no
+                close active workbook saving no
             end try
             error errMsg number errNum
         end try
-        close wb saving no
     end tell
 end run
 '''
@@ -737,35 +757,31 @@ end run
                 script_path = f.name
                 f.write(applescript)
         except Exception as e:
-            return [], [{'file': '(batch)', 'error': f'AppleScript作成エラー: {str(e)}'}]
+            return converted_files, failed_files + [{'file': '(batch)', 'error': f'AppleScript作成エラー: {str(e)}'}]
 
         try:
-            for excel_file in excel_files:
+            proc = subprocess.run(['osascript', script_path, *arg_pairs], capture_output=True, text=True, timeout=timeout_seconds * max(1, len(excel_files)) )
+            # 成否をファイル存在で判定
+            for src, out in zip(excel_files, outputs):
                 try:
-                    base_name = os.path.splitext(os.path.basename(excel_file))[0]
-                    pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
-                    if os.path.exists(pdf_path):
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        pdf_path = os.path.join(output_folder, f"{base_name}_{timestamp}.pdf")
-
-                    proc = subprocess.run([
-                        'osascript', script_path, excel_file, pdf_path
-                    ], capture_output=True, text=True, timeout=timeout_seconds)
-
-                    if proc.returncode == 0 and os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    if os.path.exists(out) and os.path.getsize(out) > 0 and proc.returncode == 0:
                         converted_files.append({
-                            'excel_file': excel_file,
-                            'pdf_file': pdf_path,
-                            'pdf_name': os.path.basename(pdf_path),
-                            'message': 'Excel (macOS) によるPDF保存'
+                            'excel_file': src,
+                            'pdf_file': out,
+                            'pdf_name': os.path.basename(out),
+                            'message': 'Excel (macOS) によるPDF保存(一括)'
                         })
                     else:
-                        err = proc.stderr.strip() or 'Excel (macOS) 変換エラー'
-                        failed_files.append({'file': excel_file, 'error': err})
-                except subprocess.TimeoutExpired:
-                    failed_files.append({'file': excel_file, 'error': f'Excel (macOS) がタイムアウトしました（{timeout_seconds}秒）'})
+                        err = (proc.stderr or '').strip() or 'Excel (macOS) 変換エラー'
+                        failed_files.append({'file': src, 'error': err})
                 except Exception as e:
-                    failed_files.append({'file': excel_file, 'error': str(e)})
+                    failed_files.append({'file': src, 'error': str(e)})
+        except subprocess.TimeoutExpired:
+            for src in excel_files:
+                failed_files.append({'file': src, 'error': f'Excel (macOS) がタイムアウトしました（{timeout_seconds}秒×{len(excel_files)}）'})
+        except Exception as e:
+            for src in excel_files:
+                failed_files.append({'file': src, 'error': str(e)})
         finally:
             try:
                 os.remove(script_path)
@@ -938,7 +954,7 @@ end run
                 if not self._is_windows_excel_available():
                     return {
                         'success': False,
-                        'error': 'Excelがインストールされていません',
+                        'error': 'Excelがダウンロードされていません',
                         'error_type': 'excel_not_installed'
                     }
                 conv, fail = self._excel_to_pdf_win32(excel_files, output_folder)
@@ -946,7 +962,7 @@ end run
                 failed_files.extend(fail)
 
             elif self.platform == 'Darwin':
-                # macOS: まずExcel(デスクトップ版)経由（xlwings優先→AppleScript）を試み、失敗時はopenpyxl+reportlabでフォールバック
+                # macOS: Excel経由のみ（xlwings優先→AppleScript）。簡易PDFのフォールバックは行わない
                 if self._is_macos_xlwings_available():
                     conv, fail = self._excel_to_pdf_macos_xlwings(excel_files, output_folder)
                     converted_files.extend(conv)
@@ -956,43 +972,17 @@ end run
                     converted_files.extend(conv)
                     failed_files.extend(fail)
                 else:
-                    # Excelが無い場合は、reportlabがあればフォールバックを試す
-                    if OPENPYXL_AVAILABLE and REPORTLAB_AVAILABLE:
-                        for excel_path in excel_files:
-                            base_name = os.path.splitext(os.path.basename(excel_path))[0]
-                            pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
-                            ok, msg = self._excel_to_pdf_openpyxl(excel_path, pdf_path)
-                            if ok:
-                                converted_files.append({
-                                    'excel_file': excel_path,
-                                    'pdf_file': pdf_path,
-                                    'pdf_name': os.path.basename(pdf_path),
-                                    'message': 'openpyxl+reportlab によるPDF保存'
-                                })
-                            else:
-                                failed_files.append({'file': excel_path, 'error': msg})
-                    # すべて失敗した場合のフォールバック
-                    if len(converted_files) == 0 and len(failed_files) > 0 and OPENPYXL_AVAILABLE and REPORTLAB_AVAILABLE:
-                        for excel_path in excel_files:
-                            base_name = os.path.splitext(os.path.basename(excel_path))[0]
-                            pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
-                            ok, msg = self._excel_to_pdf_openpyxl(excel_path, pdf_path)
-                            if ok:
-                                converted_files.append({
-                                    'excel_file': excel_path,
-                                    'pdf_file': pdf_path,
-                                    'pdf_name': os.path.basename(pdf_path),
-                                    'message': 'openpyxl+reportlab フォールバックPDF保存'
-                                })
-                            else:
-                                # 既に失敗に入っている場合は重複させない
-                                if not any(f.get('file') == excel_path for f in failed_files):
-                                    failed_files.append({'file': excel_path, 'error': msg})
+                    return {
+                        'success': False,
+                        'error': 'Excelがダウンロードされていません',
+                        'error_type': 'excel_not_installed',
+                        'system_info': self.get_system_info(),
+                    }
             else:
                 # その他プラットフォームは非対応
                 return {
                     'success': False,
-                    'error': 'Excelがインストールされていません',
+                    'error': 'Excelがダウンロードされていません',
                     'error_type': 'excel_not_installed'
                 }
 

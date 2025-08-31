@@ -14,14 +14,14 @@ from pathlib import Path
 # バックエンドモジュールをインポート
 # KintenProcessor のインポートを堅牢化
 try:
-    # 1) 同一ディレクトリ
-    from main_processor import KintenProcessor  # type: ignore
+    # 1) パッケージ形式（PyInstallerやモジュール実行時）
+    from .main_processor import KintenProcessor  # type: ignore
 except Exception:
     try:
-        # 2) パッケージ形式（PyInstallerやパッケージ実行時）
+        # 2) backend パッケージ経由
         from backend.main_processor import KintenProcessor  # type: ignore
     except Exception:
-        # 3) 明示的に現在ファイルのディレクトリをパスに追加して再試行
+        # 3) 直下実行（開発時）
         import os, sys
         sys.path.insert(0, os.path.dirname(__file__))
         from main_processor import KintenProcessor  # type: ignore
@@ -41,8 +41,9 @@ def main():
         # 処理タイプを取得
         process_type = data.get('process_type', 'csv_to_excel')
         
-        # メインプロセッサーを初期化
-        processor = KintenProcessor()
+        # 無記名モード（任意）
+        anonymize = bool(data.get('anonymize', False))
+        processor = KintenProcessor(anonymize_employee=anonymize)
         
         if process_type == 'csv_to_excel':
             # CSV to Excel処理

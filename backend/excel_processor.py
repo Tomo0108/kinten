@@ -10,14 +10,16 @@ import pandas as pd
 from typing import Dict, Any, Optional
 import os
 from datetime import datetime
+import math
 
 
 class ExcelProcessor:
     """Excel処理クラス"""
     
-    def __init__(self):
+    def __init__(self, anonymize_employee: bool = False):
         self.workbook = None  # type: ignore
         self.sheet = None  # type: ignore
+        self.anonymize_employee = anonymize_employee
     
     def load_template(self, template_path: str) -> Dict[str, Any]:
         """
@@ -70,11 +72,14 @@ class ExcelProcessor:
                 print("シートまたはワークブックが初期化されていません")
                 return False
                 
-            # 氏名が指定されている場合は含める
-            if employee_name and employee_name.strip():
-                new_sheet_name = f"勤怠表_{year_month}_{employee_name}"
-            else:
+            # 無記名指定時は氏名を含めない
+            if self.anonymize_employee:
                 new_sheet_name = f"勤怠表_{year_month}"
+            else:
+                if employee_name and employee_name.strip():
+                    new_sheet_name = f"勤怠表_{year_month}_{employee_name}"
+                else:
+                    new_sheet_name = f"勤怠表_{year_month}"
             
             print(f"シート名を変更: {new_sheet_name}")
             
@@ -102,8 +107,8 @@ class ExcelProcessor:
                 print("シートが初期化されていません")
                 return False
                 
-            # G6: 従業員名
-            self.sheet['G6'] = employee_name
+            # G6: 従業員名（無記名指定時は空欄）
+            self.sheet['G6'] = '' if self.anonymize_employee else employee_name
             
             # F5: 年
             self.sheet['F5'] = year
@@ -167,9 +172,20 @@ class ExcelProcessor:
                 # G列: 記入不要
                 # 何も設定しない
                 
-                # H列: 詳細・備考（勤怠メモ）
+                # H列: 詳細・備考（勤怠メモ + 勤怠種別プレフィックス）
                 memo = row.get('勤怠メモ', '')
-                if memo and str(memo).strip() != '':
+                att_type = row.get('勤怠種別', '')
+                memo = '' if pd.isna(memo) else str(memo).strip()
+                att_type = '' if pd.isna(att_type) else str(att_type).strip()
+
+                # 「通常勤務」を含まない勤怠種別のみプレフィックス付与
+                prefix = f"【{att_type}】" if att_type and ('通常勤務' not in att_type) else ''
+
+                if prefix and memo:
+                    self.sheet[f'H{current_row}'] = f"{prefix}\n{memo}"
+                elif prefix:
+                    self.sheet[f'H{current_row}'] = prefix
+                elif memo:
                     self.sheet[f'H{current_row}'] = memo
             
             return True
@@ -215,8 +231,11 @@ class ExcelProcessor:
             # 勤務時間 = 終業時刻 - 始業時刻 - 休憩時間
             work_hours = end_hours - start_hours - break_hours
             
-            # 負の値や0の場合は0を返す
-            return max(0, round(work_hours, 1))
+            # 15分刻み（0.25h）で切り捨て
+            if work_hours <= 0:
+                return 0
+            floored = math.floor(work_hours / 0.25) * 0.25
+            return max(0, floored)
             
         except Exception as e:
             print(f"勤務時間計算エラー: {e}")

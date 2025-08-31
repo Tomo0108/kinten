@@ -9,17 +9,24 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, Any
-from csv_processor import CSVProcessor
-from excel_processor import ExcelProcessor
-from pdf_converter import PDFConverter
+try:
+    # パッケージコンテキスト（PyInstaller含む）
+    from .csv_processor import CSVProcessor  # type: ignore
+    from .excel_processor import ExcelProcessor  # type: ignore
+    from .pdf_converter import PDFConverter  # type: ignore
+except Exception:
+    # 直下実行（開発時に backend を PYTHONPATH に追加するケース）
+    from csv_processor import CSVProcessor  # type: ignore
+    from excel_processor import ExcelProcessor  # type: ignore
+    from pdf_converter import PDFConverter  # type: ignore
 
 
 class KintenProcessor:
     """Kintenメイン処理クラス"""
     
-    def __init__(self):
+    def __init__(self, anonymize_employee: bool = False):
         self.csv_processor = CSVProcessor()
-        self.excel_processor = ExcelProcessor()
+        self.excel_processor = ExcelProcessor(anonymize_employee=anonymize_employee)
         self.pdf_converter = PDFConverter()
     
     def process_files(self, csv_path: str, template_path: str, base_output_dir: str, employee_name: str) -> Dict[str, Any]:
@@ -46,6 +53,7 @@ class KintenProcessor:
                 pass
             # 1. CSVファイル読み込み
             # 従業員名を設定
+            # 無記名の場合でもCSV側の加工は必要なので氏名は保持
             self.csv_processor.set_employee_name(employee_name)
             
             csv_result = self.csv_processor.load_csv(csv_path)
